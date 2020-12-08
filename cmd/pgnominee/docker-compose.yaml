@@ -1,0 +1,55 @@
+version: '2'
+
+networks:
+  pgcluster:
+    driver: bridge
+
+services:
+  etcd:
+    image: bitnami/etcd:latest
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+    ports:
+      - 2379:2379
+      - 2380:2380
+    volumes:
+      - etcd:/etcd_data
+    networks:
+      - pgcluster
+  pgnominee-0:
+    image: mlyahmed/pgnominee:latest
+    environment:
+      - POSTGRES_PASSWORD=password
+      - PG_NOMINEE_NODE_NAME=pgnominee-0
+      - PG_NOMINEE_NODE_ADDRESS=pgnominee-0
+      - PG_NOMINEE_CLUSTER_NAME=pgnominee
+      - PG_NOMINEE_ETCD_ENDPOINTS=etcd:2379
+    ports:
+      - 5430:5432
+    volumes:
+      - pgnominee-0:/var/lib/postgresql/data
+    networks:
+      - pgcluster
+    depends_on:
+      - etcd
+  pgnominee-1:
+    image: mlyahmed/pgnominee:latest
+    environment:
+      - POSTGRES_PASSWORD=password
+      - PG_NOMINEE_NODE_NAME=pgnominee-1
+      - PG_NOMINEE_NODE_ADDRESS=pgnominee-1
+      - PG_NOMINEE_CLUSTER_NAME=pgnominee
+      - PG_NOMINEE_ETCD_ENDPOINTS=etcd:2379
+    ports:
+      - 5431:5432
+    volumes:
+      - pgnominee-1:/var/lib/postgresql/data
+    networks:
+      - pgcluster
+    depends_on:
+      - etcd
+
+volumes:
+  etcd:
+  pgnominee-0:
+  pgnominee-1:
