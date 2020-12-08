@@ -2,31 +2,99 @@ package postgres
 
 import (
 	"context"
+	"fmt"
+	gopg "github.com/go-pg/pg/v10"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type status int
+type role int
+
+const (
+	started  status = iota
+	stopped  status = iota
+	primary  role   = iota
+	standby  role   = iota
+	recovery role   = iota
+	virgin   role   = iota
+)
+
+const (
+	defaultWaitRetry = time.Second * 2
+	defaultRetries   = 3
+	postgres         = "postgres"
 )
 
 var (
 	logger *logrus.Entry
 )
 
-type Postgres struct {
-	stopCh chan error
-	nominee nominee.Nominee
+type OSUser struct {
+	username string
+	uid      int
+	gid      int
+	homeDir  string
 }
 
-func NewPostgres(nominee nominee.Nominee) *Postgres {
+type DBUser struct {
+	Username string
+	Password string
+}
+
+type Postgres struct {
+	nominee     nominee.Nominee
+	stopCh      chan error
+	leader      nominee.Nominee
+	osUser      OSUser
+	replicaUser DBUser
+	dbaUser     DBUser
+	pgdata      string
+	db          *gopg.DB
+	status      status
+	role        role
+}
+
+func NewPostgres(nominee nominee.Nominee, replicaUser DBUser, postgresPassword string) (*Postgres, error) {
+	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
 		stopCh:  make(chan error),
 		nominee: nominee,
+		osUser: OSUser{
+			username: postgres,
+			homeDir:  osu.HomeDir,
+		},
+		replicaUser: replicaUser,
+		dbaUser: DBUser{
+			Username: postgres,
+			Password: postgresPassword,
+		},
+		pgdata: os.Getenv("PGDATA"),
+		status: stopped,
 	}
-	logger = logrus.WithFields(logrus.Fields{"service": pg.Name(), "node": pg.NodeName()})
-	return pg
+
+	pg.role = pg.lookupCurrentRole()
+	pg.osUser.uid, _ = strconv.Atoi(osu.Uid)
+	pg.osUser.gid, _ = strconv.Atoi(osu.Gid)
+	pg.db = gopg.Connect(&gopg.Options{User: pg.dbaUser.Username, Password: pg.dbaUser.Password})
+
+	_ = pg.createPgPassFile()
+
+	logger = logrus.WithFields(logrus.Fields{
+		"service": pg.ServiceName(),
+		"node":    pg.NodeName(),
+	})
+	return pg, nil
 }
 
-func (pg *Postgres) Name() string {
+func (pg *Postgres) ServiceName() string {
 	return "postgres"
 }
 
@@ -34,28 +102,239 @@ func (pg *Postgres) NodeName() string {
 	return pg.nominee.Name
 }
 
+func (pg *Postgres) NodeAddress() string {
+	return pg.nominee.Address
+}
+
 func (pg *Postgres) ClusterName() string {
 	return pg.nominee.Cluster
 }
 
-func (pg *Postgres) Promote(context context.Context, _ nominee.Nominee) error {
-	logger.Infof("postgres: promote to primary...\n")
-	promotion := exec.CommandContext(context, "/docker-entrypoint.sh", "postgres")
-	promotion.Stdout, promotion.Stderr = os.Stdout, os.Stderr
-	go func() { pg.stopCh <- promotion.Run()}()
+func (pg *Postgres) Nominee() nominee.Nominee {
+	return pg.nominee
+}
+
+func (pg *Postgres) Promote(context context.Context, myself nominee.Nominee) error {
+	logger.Infof("postgres: promote to primary as %v ...\n", myself.Name)
+	pg.leader = myself
+	defer pg.db.Close()
+
+	if err := pg.start(context); err != nil {
+		return err
+	}
+
+	if pg.role == virgin {
+
+		if err := pg.createReplicaUser(context); err != nil {
+			return err
+		}
+
+		if err := pg.authorizeReplication(context); err != nil {
+			return err
+		}
+
+		if err := pg.reloadConf(context); err != nil {
+			return err
+		}
+
+	} else if pg.role == standby {
+
+		if err := pg.execOSCmd(context, "pg_ctl promote", 0); err != nil {
+			return err
+		}
+
+	}
+
+	pg.role = primary
 	return nil
 }
 
-func (pg *Postgres) FollowNewLeader(context.Context, nominee.Nominee) error {
-	logger.Infof("postgres: following the new leader. \n")
+func (pg *Postgres) FollowNewLeader(ctx context.Context, leader nominee.Nominee) error {
+	logger.Infof("postgres: following the new leader: %v \n", leader.Name)
+	pg.leader = leader
+
+	if pg.role == virgin {
+
+		if err := pg.baseBackup(ctx, leader); err != nil {
+			return err
+		}
+
+		if err := pg.start(ctx); err != nil {
+			return err
+		}
+
+	} else if pg.role == primary {
+
+		if err := pg.execOSCmd(ctx, fmt.Sprintf("pg_rewind --source-server='host=%s port=5432 user=%s' --target-pgdata=%s", pg.leader.Address, pg.dbaUser.Username, pg.pgdata), 3); err != nil {
+			return err
+		}
+		_ = pg.execOSCmd(ctx, fmt.Sprintf("touch %s/standby.signal", pg.pgdata), 0)
+		_ = pg.start(ctx)
+		_ = pg.setPrimaryConnInfo(ctx)
+		_ = pg.reloadConf(ctx)
+
+	} else {
+		if pg.status == stopped {
+			_ = pg.start(ctx)
+		}
+		_ = pg.setPrimaryConnInfo(ctx)
+		_ = pg.reloadConf(ctx)
+	}
+
+	pg.role = standby
 	return nil
 }
 
-func (pg *Postgres) Stonith(context.Context) error {
-	logger.Infof("postgres: stopping... \n")
+func (pg *Postgres) Stonith(context context.Context) error {
+	logger.Infof("postgres: stonithing... \n")
+	_ = pg.execOSCmd(context, "pg_ctl stop", 0)
 	return nil
 }
 
-func (pg *Postgres) StopChan() <- chan error {
+func (pg *Postgres) StopChan() <-chan error {
 	return pg.stopCh
+}
+
+func (pg *Postgres) start(context context.Context) error {
+	if pg.status == started {
+		return nil
+	}
+
+	go func() {
+		if pg.role == virgin {
+			_ = os.Setenv("POSTGRES_INITDB_ARGS", fmt.Sprintf("--data-checksums %s", os.Getenv("POSTGRES_INITDB_ARGS")))
+		}
+		start := exec.CommandContext(context, "/docker-entrypoint.sh", pg.osUser.username)
+		start.Stdout, start.Stderr = logger.Writer(), logger.Writer()
+		pg.stopCh <- start.Run()
+		pg.status = stopped //When the Run returns it means the service is stopped.
+	}()
+
+	if err := pg.warmUp(context, defaultRetries); err != nil {
+		return err
+	}
+
+	pg.status = started
+	return nil
+}
+
+func (pg *Postgres) createPgPassFile() error {
+	postgresPgPass := fmt.Sprintf("%s/.pgpass", pg.osUser.homeDir)
+	if _, err := os.Stat(postgresPgPass); os.IsNotExist(err) {
+		replicator := fmt.Sprintf("*:*:*:%s:%s", pg.replicaUser.Username, pg.replicaUser.Password)
+		dba := fmt.Sprintf("*:*:*:%s:%s", pg.dbaUser.Username, pg.dbaUser.Password)
+		lines := []byte(replicator + "\n" + dba)
+		if err := ioutil.WriteFile(postgresPgPass, lines, 0600); err != nil {
+			return err
+		}
+
+		if err := os.Chown(postgresPgPass, pg.osUser.uid, pg.osUser.gid); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (pg *Postgres) authorizeReplication(context context.Context) error {
+	if err := pg.execDBCmd(context, "ALTER SYSTEM SET listen_addresses TO '*'"); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("%s/pg_hba.conf", pg.pgdata)
+	line := fmt.Sprintf("host replication %s 0.0.0.0/0 md5", pg.replicaUser.Username)
+	content, _ := ioutil.ReadFile(path)
+	if contains := strings.Contains(string(content), line); contains {
+		return nil
+	}
+	return pg.execOSCmd(context, fmt.Sprintf("echo '%s' >> %s", line, path), 0)
+}
+
+func (pg *Postgres) baseBackup(context context.Context, leader nominee.Nominee) error {
+	cmd := fmt.Sprintf("pg_basebackup -h %s -U %s -p 5432 -D %s -Fp -Xs -P -R", leader.Address, pg.replicaUser.Username, pg.pgdata)
+	return pg.execOSCmd(context, cmd, defaultRetries)
+}
+
+func (pg *Postgres) createReplicaUser(context context.Context) error {
+	if err := pg.execDBCmd(context, fmt.Sprintf("DROP USER IF EXISTS %s", pg.replicaUser.Username)); err != nil {
+		return err
+	}
+
+	if err := pg.execDBCmd(context, fmt.Sprintf("CREATE USER %s WITH REPLICATION ENCRYPTED PASSWORD '%s'", pg.replicaUser.Username, pg.replicaUser.Password)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (pg *Postgres) setPrimaryConnInfo(ctx context.Context) error {
+	return pg.execDBCmd(ctx, fmt.Sprintf("ALTER SYSTEM SET primary_conninfo TO "+
+		"'user=replicator "+
+		"passfile=''/var/lib/postgresql/.pgpass'' "+
+		"channel_binding=prefer "+
+		"host=%s "+
+		"port=5432 "+
+		"sslmode=prefer "+
+		"sslcompression=0 "+
+		"ssl_min_protocol_version=TLSv1.2 "+
+		"gssencmode=prefer "+
+		"krbsrvname=postgres "+
+		"target_session_attrs=any'", pg.leader.Address))
+}
+
+func (pg *Postgres) reloadConf(context context.Context) error {
+	return pg.execDBCmd(context, "select pg_reload_conf()")
+}
+
+func (pg *Postgres) lookupCurrentRole() role {
+	if pg.isPgDataEmpty() {
+		return virgin
+	} else if _, err := os.Stat(fmt.Sprintf("%s/standby.signal", pg.pgdata)); err == nil {
+		return standby
+	} else if _, err := os.Stat(fmt.Sprintf("%s/recovery.signal", pg.pgdata)); err == nil {
+		return recovery
+	} else {
+		return primary
+	}
+}
+
+func (pg *Postgres) execOSCmd(context context.Context, cmd string, retries int) error {
+	for i := retries; ; i-- {
+		command := exec.CommandContext(context, "su", "-c", cmd, pg.osUser.username)
+		command.Stdout, command.Stderr = logger.Writer(), logger.Writer()
+
+		if err := command.Run(); err != nil {
+			if i >= 0 {
+				time.Sleep(defaultWaitRetry)
+				continue
+			} else {
+				return err
+			}
+		}
+		break
+	}
+	return nil
+}
+
+func (pg *Postgres) execDBCmd(context context.Context, cmd string) error {
+	_, err := pg.db.ExecContext(context, cmd)
+	return err
+}
+
+func (pg *Postgres) warmUp(context context.Context, retries int) error {
+	for i := retries; ; i-- {
+		if err := pg.db.Ping(context); err != nil {
+			if i >= 0 {
+				time.Sleep(defaultWaitRetry)
+				continue
+			} else {
+				return err
+			}
+		}
+		break
+	}
+	return nil
+}
+
+func (pg *Postgres) isPgDataEmpty() bool {
+	entries, _ := ioutil.ReadDir(pg.pgdata)
+	return len(entries) == 0
 }

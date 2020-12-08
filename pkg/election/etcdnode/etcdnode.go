@@ -2,6 +2,7 @@ package etcdnode
 
 import (
 	"context"
+	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,17 +16,18 @@ import (
 )
 
 type EtcdNode struct {
-	service   service.Service
-	endpoints []string
-	ctx       context.Context
-	cancel    func()
-	client    *clientv3.Client
-	session   *concurrency.Session
-	election  *concurrency.Election
-	leader    clientv3.GetResponse
-	errorCh   chan error
-	stopCh    chan struct{}
-	stopped   bool
+	service    service.Service
+	endpoints  []string
+	ctx        context.Context
+	cancel     func()
+	client     *clientv3.Client
+	kv         clientv3.KV
+	session    *concurrency.Session
+	election   *concurrency.Election
+	leaderEtcd clientv3.GetResponse
+	errorCh    chan error
+	stopCh     chan struct{}
+	stopped    bool
 }
 
 var (
@@ -34,12 +36,7 @@ var (
 
 func NewEtcdNode(service service.Service, endpoints []string) *EtcdNode {
 	subContext, subCancel := context.WithCancel(context.Background())
-	logger = logrus.WithFields(logrus.Fields{
-		"elector": "etcd",
-		"service": service.Name(),
-		"node": service.NodeName(),
-	})
-
+	logger = logrus.WithFields(logrus.Fields{"elector": "etcd", "service": service.ServiceName(), "node": service.NodeName()})
 	return &EtcdNode{
 		service:   service,
 		endpoints: endpoints,
@@ -61,9 +58,9 @@ func (node *EtcdNode) Cleanup() {
 }
 
 func (node *EtcdNode) Run() error {
-	logger.Infof("etcd: starting...")
+	logger.Infof("starting...")
 
-	node.setUpSignals()
+	node.setUpOSSignals()
 
 	if err := node.newSession(); err != nil {
 		return err
@@ -73,7 +70,7 @@ func (node *EtcdNode) Run() error {
 	node.observe()
 	node.stayTuned()
 
-	logger.Infof("etcd: Started.")
+	logger.Infof("started.")
 	return nil
 }
 
@@ -81,19 +78,19 @@ func (node *EtcdNode) StopCh() <-chan struct{} {
 	return node.stopCh
 }
 
-func (node *EtcdNode) setUpSignals() {
+func (node *EtcdNode) setUpOSSignals() {
 	listener := make(chan os.Signal, len(signals.ShutdownSignals))
 	signal.Notify(listener, signals.ShutdownSignals...)
 	go func() {
 		<-listener
-		node.stop()
+		node.stonith()
 		<-listener
 		os.Exit(1)
 	}()
 }
 
 func (node *EtcdNode) newSession() error {
-	logger.Infof("etcd: create new session...")
+	logger.Infof("create new session...")
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   node.endpoints,
 		DialTimeout: 1 * time.Second,
@@ -102,6 +99,7 @@ func (node *EtcdNode) newSession() error {
 		return err
 	}
 	node.client = client
+	node.kv = clientv3.NewKV(node.client)
 
 	session, err := concurrency.NewSession(node.client, concurrency.WithTTL(1), concurrency.WithContext(node.ctx))
 	if err != nil {
@@ -109,14 +107,16 @@ func (node *EtcdNode) newSession() error {
 	}
 
 	node.session = session
-	if len(node.leader.Kvs) > 0 {
-		logger.Infof("etcd: resume election...")
-		node.election = concurrency.ResumeElection(node.session, node.service.ClusterName(), string(node.leader.Kvs[0].Key), node.leader.Kvs[0].CreateRevision)
+
+	if len(node.leaderEtcd.Kvs) > 0 {
+		logger.Infof("resume election...")
+		node.election = concurrency.ResumeElection(node.session, node.etcdPrefix(), string(node.leaderEtcd.Kvs[0].Key), node.leaderEtcd.Kvs[0].CreateRevision)
 	} else {
-		logger.Infof("etcd: new election...")
-		node.election = concurrency.NewElection(node.session, node.service.ClusterName())
+		logger.Infof("new election...")
+		node.election = concurrency.NewElection(node.session, node.etcdPrefix())
 	}
-	logger.Infof("etcd: session created.")
+
+	logger.Infof("session created.")
 	return nil
 }
 
@@ -125,26 +125,22 @@ func (node *EtcdNode) stayTuned() {
 		for {
 			select {
 			case err := <-node.service.StopChan():
-				if err == nil {
-					logger.Infof("etcd: service stopped.")
-				} else {
-					logger.Errorf("etcd: service stopped because of %s.", err)
-				}
-				node.stop()
+				logger.Warningf("service stopped because of %s.", err)
+				node.stonith()
 			case err := <-node.errorCh:
 				if err != nil {
 					if errors.Cause(err) == context.Canceled {
 						logger.Errorf("receive cancel error. Proceed to STOP !")
-						node.stop()
+						node.stonith()
 						return
 					}
-					logger.Warnf("etcd: ignored error %s", err)
+					logger.Warnf("ignored error %s", err)
 				}
 			case <-node.session.Done():
 				if node.stopped {
 					return
 				}
-				logger.Infof("etcd: session closed. Retrying...")
+				logger.Infof("session closed. Retrying...")
 				node.retry()
 			}
 		}
@@ -153,8 +149,8 @@ func (node *EtcdNode) stayTuned() {
 
 func (node *EtcdNode) conquer() {
 	go func() {
-		logger.Infof("etcd: conquer as %v...", node.service.NodeName())
-		node.errorCh <- node.election.Campaign(node.ctx, node.service.NodeName())
+		logger.Infof("conquer as %v...", node.service.NodeName())
+		node.errorCh <- node.election.Campaign(node.ctx, node.service.Nominee().Marshal())
 	}()
 }
 
@@ -164,47 +160,47 @@ func (node *EtcdNode) observe() {
 		for leader := range observe {
 			node.changeLeader(leader)
 		}
-		logger.Debug("etcd: observation stopped.")
+		logger.Debug("observation stopped.")
 	}()
 }
 
 func (node *EtcdNode) changeLeader(leader clientv3.GetResponse) {
 	amICurrentlyTheLeader := node.amITheLeader()
-	node.leader = leader
-	amITheNewLeader := string(leader.Kvs[0].Value) == node.service.NodeName()
+	amITheNewLeader := node.toNominee(leader).Name == node.service.NodeName()
+	node.leaderEtcd = leader
 
 	if amITheNewLeader && amICurrentlyTheLeader {
 
-		logger.Infof("etcd: I stay the leader. Nothing to do.")
+		logger.Infof("I stay the leaderEtcd. Nothing to do.")
 
 	} else if amITheNewLeader && !amICurrentlyTheLeader {
-		logger.Infof("etcd: Promoting The Service...")
-		if err := node.service.Promote(node.ctx, nominee.Nominee{}); err != nil {
-			node.errorCh <- err
-			return
-		}
+
+		logger.Infof("promoting The Service...")
+		node.errorCh <- node.service.Promote(node.ctx, node.leaderNominee())
+
 	} else if !amITheNewLeader && amICurrentlyTheLeader {
-		//STONITH : Shoot The EtcdNode In The Head
-		logger.Infof("etcd: shoot me in the head...")
-		node.stop()
+
+		node.stonith()
 
 	} else {
-		node.errorCh <- node.service.FollowNewLeader(node.ctx, nominee.Nominee{})
+
+		node.errorCh <- node.service.FollowNewLeader(node.ctx, node.leaderNominee())
+
 	}
 }
 
 func (node *EtcdNode) retry() {
-	logger.Infof("etcd: retrying...")
+	logger.Infof("retrying...")
 
 	node.cancel()
 	node.ctx, node.cancel = context.WithCancel(context.Background())
 
 	for {
 		if err := node.newSession(); err != nil {
-			logger.Errorf("etcd: error when retry new session, %s", err)
+			logger.Errorf("error when retry new session, %s", err)
 			time.Sleep(time.Second * 2)
 		} else {
-			logger.Info("etcd: new session created.")
+			logger.Info("new session created.")
 			break
 		}
 	}
@@ -213,11 +209,11 @@ func (node *EtcdNode) retry() {
 	node.observe()
 }
 
-func (node *EtcdNode) stop() {
-	logger.Infof("etcd: Stopping...")
+func (node *EtcdNode) stonith() {
+	logger.Infof("stonithing...")
 
 	if node.amITheLeader() {
-		logger.Infof("etcd: resign since I was leader...")
+		logger.Infof("resign since I was leader...")
 		_ = node.service.Stonith(node.ctx)
 		_ = node.election.Resign(node.ctx)
 	}
@@ -227,6 +223,22 @@ func (node *EtcdNode) stop() {
 	node.stopped = true
 }
 
+func (node *EtcdNode) leaderNominee() nominee.Nominee {
+	return node.toNominee(node.leaderEtcd)
+}
+
 func (node *EtcdNode) amITheLeader() bool {
-	return len(node.leader.Kvs) > 0 && string(node.leader.Kvs[0].Value) == node.service.NodeName()
+	return node.leaderNominee().Name == node.service.NodeName()
+}
+
+func (node *EtcdNode) toNominee(response clientv3.GetResponse) nominee.Nominee {
+	var value nominee.Nominee
+	if len(response.Kvs) > 0 {
+		value, _ = nominee.Unmarshal(response.Kvs[0].Value)
+	}
+	return value
+}
+
+func (node *EtcdNode) etcdPrefix() string {
+	return fmt.Sprintf("nominee/service/%s/cluster/%s", node.service.ServiceName(), node.service.ClusterName())
 }
