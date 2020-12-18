@@ -1,0 +1,48 @@
+#kill -s USR2 $(pidof haproxy)
+
+global
+	log /dev/log	local0
+	log /dev/log	local1 notice
+	stats timeout 30s
+
+defaults
+	log	global
+	mode	tcp
+	option  tcplog
+	option	dontlognull
+    timeout connect 5000
+    timeout client  50000
+    timeout server  50000
+
+listen stats
+    bind *:9999
+    mode http
+    stats enable
+    stats uri /haproxy
+    stats show-legends
+    stats show-node
+    stats realm Auth\ required
+    stats auth haproxy:haproxy
+    stats admin if TRUE
+
+frontend fe_pg_primary
+    bind 127.0.0.1:5432
+    mode tcp
+    default_backend be_pg_primary
+
+frontend fe_pg_standby
+    bind 127.0.0.1:5434
+    mode tcp
+    default_backend be_pg_standby
+
+backend be_pg_primary
+    mode tcp
+    option tcp-check
+    server node2 127.0.0.1:5412 check observe layer4
+
+backend be_pg_standby
+    mode tcp
+    option tcp-check
+    balance roundrobin
+    server node1 127.0.0.1:5411 check observe layer4 weight 100
+    server node3 127.0.0.1:5413 check observe layer4 weight 100
