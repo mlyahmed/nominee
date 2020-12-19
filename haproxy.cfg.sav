@@ -1,48 +1,46 @@
 #kill -s USR2 $(pidof haproxy)
+#docker run -d --name haproxy --network=nominee  -v $PWD:/usr/local/etc/haproxy:ro -p 9999:9999 -p 5000:5000 -p 5001:5001  haproxy
 
 global
-	log /dev/log	local0
-	log /dev/log	local1 notice
-	stats timeout 30s
+  stats timeout 30s
+  log /dev/log local0
+  log /dev/log local1 notice
 
 defaults
-	log	global
-	mode	tcp
-	option  tcplog
-	option	dontlognull
-    timeout connect 5000
-    timeout client  50000
-    timeout server  50000
+  mode tcp
+  log global
+  option tcplog
+  option dontlognull
+  timeout connect 5000
+  timeout client 50000
+  timeout server 50000
+
+frontend fe_primary
+  mode tcp
+  bind *:5000
+  default_backend be_primary
+
+frontend fe_standby
+  mode tcp
+  bind *:5001
+  default_backend be_standby
+
+backend be_primary
+  mode tcp
+  option tcp-check
+
+backend be_standby
+  mode tcp
+  balance roundrobin
+  option tcp-check
 
 listen stats
-    bind *:9999
-    mode http
-    stats enable
-    stats uri /haproxy
-    stats show-legends
-    stats show-node
-    stats realm Auth\ required
-    stats auth haproxy:haproxy
-    stats admin if TRUE
-
-frontend fe_pg_primary
-    bind 127.0.0.1:5432
-    mode tcp
-    default_backend be_pg_primary
-
-frontend fe_pg_standby
-    bind 127.0.0.1:5434
-    mode tcp
-    default_backend be_pg_standby
-
-backend be_pg_primary
-    mode tcp
-    option tcp-check
-    server node2 127.0.0.1:5412 check observe layer4
-
-backend be_pg_standby
-    mode tcp
-    option tcp-check
-    balance roundrobin
-    server node1 127.0.0.1:5411 check observe layer4 weight 100
-    server node3 127.0.0.1:5413 check observe layer4 weight 100
+  bind *:9999
+  mode http
+  stats enable
+  stats uri /
+  stats show-legends
+  stats show-node
+  stats realm Auth\ required
+  stats auth admin:admin
+  stats admin if TRUE

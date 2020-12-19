@@ -2,11 +2,14 @@ package nominee
 
 import "encoding/json"
 
+type StopChan <-chan error
+
 type Nominee struct {
-	Name    string
-	Cluster string
-	Address string
-	Port    int
+	ElectionKey string
+	Name        string
+	Cluster     string
+	Address     string
+	Port        int64
 }
 
 func (n Nominee) Marshal() string {

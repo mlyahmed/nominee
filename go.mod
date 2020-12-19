@@ -17,8 +17,8 @@ require (
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
-	github.com/haproxytech/client-native/v2 v2.1.0
-	github.com/haproxytech/config-parser/v2 v2.1.0 // indirect
+	github.com/haproxytech/client-native/v2 v2.1.1-0.20201217111116-ad2d913a410e
+	github.com/haproxytech/models/v2 v2.1.1-0.20201208104308-ea0dd4a520f9
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.8.0 // indirect

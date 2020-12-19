@@ -4,12 +4,13 @@
 SHELL = /bin/bash
 
 HARD_BUILD ?=
+DOCKER_USERNAME ?= mlyahmed
 DOCKER_PASSWORD ?=
 
 export NOMINEE_NETWORK ?= nominee
 export GOARCH ?= $(shell go env GOARCH)
 export GOOS ?= $(shell go env GOOS)
-export NOMINEE_DOCKER_REPO := mlyahmed
+export NOMINEE_DOCKER_REPO := nominee
 export NOMINEE_ARTIFACTS := pgnominee
 export NOMINEE_BIN_DIR := bin
 export BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
@@ -61,7 +62,7 @@ push-image-%:
 
 .PHONY: docker-login
 docker-login:
-	$(if $(DOCKER_PASSWORD), @echo $(DOCKER_PASSWORD) | docker login -u $(NOMINEE_DOCKER_REPO) --password-stdin)
+	$(if $(DOCKER_PASSWORD), @echo $(DOCKER_PASSWORD) | docker login -u $(DOCKER_USERNAME) --password-stdin)
 
 .PHONY: docker-logout
 docker-logout:

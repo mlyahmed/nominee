@@ -1,4 +1,4 @@
-package postgres
+package service
 
 import (
 	"context"
@@ -89,7 +89,7 @@ func NewPostgres(nominee nominee.Nominee, replicaUser DBUser, postgresPassword s
 
 	logger = logrus.WithFields(logrus.Fields{
 		"service": pg.ServiceName(),
-		"node":    pg.NodeName(),
+		"node":    pg.NomineeName(),
 	})
 	return pg, nil
 }
@@ -98,11 +98,11 @@ func (pg *Postgres) ServiceName() string {
 	return "postgres"
 }
 
-func (pg *Postgres) NodeName() string {
+func (pg *Postgres) NomineeName() string {
 	return pg.nominee.Name
 }
 
-func (pg *Postgres) NodeAddress() string {
+func (pg *Postgres) NomineeAddress() string {
 	return pg.nominee.Address
 }
 
@@ -114,7 +114,7 @@ func (pg *Postgres) Nominee() nominee.Nominee {
 	return pg.nominee
 }
 
-func (pg *Postgres) Promote(context context.Context, myself nominee.Nominee) error {
+func (pg *Postgres) Lead(context context.Context, myself nominee.Nominee) error {
 	logger.Infof("postgres: promote to primary as %v ...\n", myself.Name)
 	pg.leader = myself
 	defer pg.db.Close()
@@ -149,7 +149,7 @@ func (pg *Postgres) Promote(context context.Context, myself nominee.Nominee) err
 	return nil
 }
 
-func (pg *Postgres) FollowNewLeader(ctx context.Context, leader nominee.Nominee) error {
+func (pg *Postgres) Follow(ctx context.Context, leader nominee.Nominee) error {
 	logger.Infof("postgres: following the new leader: %v \n", leader.Name)
 	pg.leader = leader
 
@@ -191,7 +191,7 @@ func (pg *Postgres) Stonith(context context.Context) error {
 	return nil
 }
 
-func (pg *Postgres) StopChan() <-chan error {
+func (pg *Postgres) StopChan() nominee.StopChan {
 	return pg.stopCh
 }
 

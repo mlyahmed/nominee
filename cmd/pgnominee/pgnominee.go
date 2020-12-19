@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/build"
-	"github/mlyahmed.io/nominee/pkg/election/etcdnode"
 	"github/mlyahmed.io/nominee/pkg/nominee"
-	"github/mlyahmed.io/nominee/pkg/service/postgres"
+	"github/mlyahmed.io/nominee/pkg/race"
+	"github/mlyahmed.io/nominee/pkg/service"
 	"os"
 	"strings"
 	"time"
@@ -56,28 +56,29 @@ func init() {
 }
 
 func main() {
-	pg, _ := postgres.NewPostgres(
+	pg, _ := service.NewPostgres(
 		nominee.Nominee{
 			Name:    fmt.Sprintf("%s-%d", nodeName, time.Now().Nanosecond()), //Make sure the nodes do not collide. It is the pgnominee.main responsibility ?
 			Cluster: clusterName,
 			Address: nodeAddress,
+			Port:    5432,
 		},
-		postgres.DBUser{
+		service.DBUser{
 			Username: "replicator",
 			Password: "isgrfihgfiwhcfniw",
 		},
 		postgresPassword,
 	)
 
-	elector := etcdnode.NewEtcdNode(pg, strings.Split(etcdEndPoints, ","))
-	defer elector.Cleanup()
+	etcd := race.NewEtcdRacer(strings.Split(etcdEndPoints, ","))
+	defer etcd.Cleanup()
 
 	logger.Infof("starting...")
-	if err := elector.Run(); err != nil {
+	if err := etcd.Run(pg); err != nil {
 		logger.Errorf("pgnominee: %v \n", err)
 		return
 	}
 
-	<-elector.StopCh()
+	<-etcd.StopChan()
 	logger.Infof("pgnominee: stopped.")
 }
