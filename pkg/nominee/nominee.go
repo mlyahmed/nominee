@@ -7,7 +7,6 @@ type StopChan <-chan error
 type Nominee struct {
 	ElectionKey string
 	Name        string
-	Cluster     string
 	Address     string
 	Port        int64
 }

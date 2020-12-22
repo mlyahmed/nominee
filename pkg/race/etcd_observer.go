@@ -1,7 +1,6 @@
 package race
 
 import (
-	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/sirupsen/logrus"
@@ -12,56 +11,31 @@ import (
 
 type EtcdObserver struct {
 	*Etcd
-	*proxy.Config
 	proxy.Proxy
 }
 
-func NewEtcdObserver(endpoints []string) Observer {
-	subContext, subCancel := context.WithCancel(context.Background())
+func NewEtcdObserver(config *EtcdConfig) Observer {
 	logger = logrus.WithFields(logrus.Fields{"observer": "etcd"})
 	return &EtcdObserver{
-		Etcd: &Etcd{
-			endpoints: endpoints,
-			ctx:       subContext,
-			cancel:    subCancel,
-			errorChan: make(chan error),
-			stopChan:  make(chan error),
-		},
+		Etcd: NewEtcd(config),
 	}
 }
 
 func (observer *EtcdObserver) Observe(proxy proxy.Proxy) error {
 	observer.Proxy = proxy
-	observer.domain = proxy.Config().Domain // Very bad
-	observer.cluster = proxy.Config().Cluster
-
 	observer.setUpOSSignals()
 	if err := observer.subscribeToElection(); err != nil {
-		panic(err)
+		return err
 	}
 
-	response, err := observer.client.Get(observer.ctx, observer.electionKey(), clientv3.WithPrefix())
-	if err != nil {
-		panic(err)
-	}
+	observer.stayTuned()
+	observer.pushCurrentNominees()
+	observer.observeLeaderNominee()
+	observer.observeNominees()
+	return nil
+}
 
-	for _, n := range response.Kvs {
-		decoded, _ := nominee.Unmarshal(n.Value)
-		decoded.ElectionKey = string(n.Key)
-		if err := observer.PushNominees(decoded); err != nil {
-			panic(err)
-		}
-	}
-
-	go func() {
-		observe := observer.election.Observe(observer.ctx)
-		for leader := range observe {
-			if err := observer.PushLeader(observer.toNominee(leader)); err != nil {
-				panic(err)
-			}
-		}
-	}()
-
+func (observer *EtcdObserver) observeNominees() {
 	go func() {
 		watch := observer.client.Watch(observer.ctx, observer.electionKey(), clientv3.WithPrefix())
 		for response := range watch {
@@ -73,22 +47,51 @@ func (observer *EtcdObserver) Observe(proxy proxy.Proxy) error {
 					if err := observer.RemoveNominee(string(v.Kv.Key)); err != nil {
 						panic(err)
 					}
+					logger.Infof("Nominee deleted : %s", decoded.Marshal())
 				case mvccpb.PUT:
 					if err := observer.PushNominees(decoded); err != nil {
 						panic(err)
 					}
+					logger.Infof("New Nominee added : %s", decoded.Marshal())
 				default:
 					panic("unknown")
 				}
 			}
 		}
 	}()
+}
 
-	observer.stayTuned()
-	return nil
+func (observer *EtcdObserver) observeLeaderNominee() {
+	go func() {
+		observe := observer.election.Observe(observer.ctx)
+		for leader := range observe {
+			decoded := observer.toNominee(leader)
+			if err := observer.PushLeader(decoded); err != nil {
+				panic(err)
+			}
+			logger.Infof("Leader pushed : %s", decoded.Marshal())
+		}
+	}()
+}
+
+func (observer *EtcdObserver) pushCurrentNominees() {
+	response, err := observer.client.Get(observer.ctx, observer.electionKey(), clientv3.WithPrefix())
+	if err != nil {
+		panic(err)
+	}
+
+	for _, n := range response.Kvs {
+		decoded, _ := nominee.Unmarshal(n.Value)
+		decoded.ElectionKey = string(n.Key)
+		if err := observer.PushNominees(decoded); err != nil {
+			panic(err)
+		}
+		logger.Infof("Nominee pushed : %s", decoded.Marshal())
+	}
 }
 
 func (observer *EtcdObserver) subscribeToElection() error {
+	logger.Infof("Subscribe to the election %s...", observer.electionKey())
 	if err := observer.Etcd.newSession(); err != nil {
 		return err
 	}

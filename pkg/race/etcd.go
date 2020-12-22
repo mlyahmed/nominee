@@ -11,6 +11,7 @@ import (
 	"go.etcd.io/etcd/clientv3/concurrency"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,19 @@ type Etcd struct {
 var (
 	logger *logrus.Entry
 )
+
+func NewEtcd(config *EtcdConfig) *Etcd {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Etcd{
+		endpoints: strings.Split(config.endpoints, ","),
+		ctx:       ctx,
+		cancel:    cancel,
+		errorChan: make(chan error),
+		stopChan:  make(chan error),
+		cluster:   config.Cluster,
+		domain:    config.Domain,
+	}
+}
 
 func (etcd *Etcd) Cleanup() {
 	if etcd.client != nil {
@@ -58,7 +72,7 @@ func (etcd *Etcd) setUpOSSignals() {
 }
 
 func (etcd *Etcd) newSession() error {
-	logger.Infof("create new session...")
+	logger.Infof("create new session. Endpoints %s", etcd.endpoints)
 	client, err := clientv3.New(clientv3.Config{
 		Endpoints:   etcd.endpoints,
 		DialTimeout: 1 * time.Second,

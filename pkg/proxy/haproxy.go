@@ -1,19 +1,25 @@
 package proxy
 
 import (
+	"context"
+	"fmt"
 	"github.com/haproxytech/client-native/v2/configuration"
 	"github.com/haproxytech/models/v2"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"os"
+	"os/exec"
+	"sync"
 )
 
 type HAProxy struct {
-	config *Config
 	*configuration.Client
 	currentTx *models.Transaction
 	version   int64
 	primary   nominee.Nominee
 	standbies []nominee.Nominee
+	mutex     *sync.Mutex
+	ctx       context.Context
+	cancel    func()
 }
 
 const (
@@ -21,30 +27,16 @@ const (
 	standbyBackend string = "be_standby"
 )
 
-func (proxy *HAProxy) Config() *Config {
-	return proxy.config
-}
+func NewHAProxy(config *HAProxyConfig) *HAProxy {
+	proxy := HAProxy{Client: &configuration.Client{}, mutex: &sync.Mutex{}}
+	proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
 
-func NewHAProxy(domain, cluster string) *HAProxy {
-	proxy := HAProxy{
-		config: &Config{
-			Domain:  domain,
-			Cluster: cluster,
-		},
-		Client: &configuration.Client{},
-	}
-
-	cgfFilePath := "/home/ahmed/data/projects/postgres-operator/labs/nominee/haproxy.cfg"
-	if _, err := os.Stat(cgfFilePath); os.IsNotExist(err) {
-		file, _ := os.Create(cgfFilePath)
-		_ = file.Close()
-	}
 	confParams := configuration.ClientParams{
-		ConfigurationFile:      cgfFilePath,
-		Haproxy:                "/usr/sbin/haproxy",
+		ConfigurationFile:      config.ConfigFile,
+		Haproxy:                config.ExecFile,
+		TransactionDir:         config.TxDir,
 		UseValidation:          true,
 		PersistentTransactions: true,
-		TransactionDir:         "/tmp/haproxy",
 	}
 
 	if err := proxy.Init(confParams); err != nil {
@@ -57,37 +49,63 @@ func NewHAProxy(domain, cluster string) *HAProxy {
 	}
 
 	proxy.version = version
-	proxy.startNewTx()
-	proxy.removeAllServers()
-	proxy.commitCurrentTx()
 
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
+	proxy.startTx()
+	proxy.removeAllServers()
+	proxy.commitTx()
+
+	proxy.start(false)
 	return &proxy
 }
 
+func (proxy *HAProxy) start(reload bool) {
+	go func(reload bool) {
+		if reload {
+			proxy.cancel()
+			proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
+		}
+		command := exec.CommandContext(proxy.ctx, "/docker-entrypoint.sh", proxy.Haproxy, "-f", proxy.ConfigurationFile)
+		command.Stdout, command.Stderr = os.Stdout, os.Stderr
+		if err := command.Run(); err != nil {
+			fmt.Printf("Run of /docker-entrypoint.sh -> %v\n", err)
+		}
+	}(reload)
+}
+
 func (proxy *HAProxy) PushNominees(nominees ...nominee.Nominee) error {
-	proxy.startNewTx()
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
+	proxy.startTx()
 	for _, v := range nominees {
 		proxy.removeServer(v.Name, primaryBackend)
 		proxy.removeServer(v.Name, standbyBackend)
-		proxy.createServer(standbyBackend, v)
+		proxy.addServer(standbyBackend, v)
 	}
 	proxy.standbies = append(proxy.standbies, nominees...)
-	proxy.commitCurrentTx()
+	proxy.commitTx()
+	proxy.start(true)
 	return nil
 }
 
 func (proxy *HAProxy) PushLeader(leader nominee.Nominee) error {
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
 	proxy.primary = leader
-	proxy.startNewTx()
+	proxy.startTx()
 	proxy.removeServer(leader.Name, primaryBackend)
 	proxy.removeServer(leader.Name, standbyBackend)
-	proxy.createServer(primaryBackend, leader)
-	proxy.commitCurrentTx()
+	proxy.addServer(primaryBackend, leader)
+	proxy.commitTx()
+	proxy.start(true)
 	return nil
 }
 
 func (proxy *HAProxy) RemoveNominee(electionKey string) error {
-	proxy.startNewTx()
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
+	proxy.startTx()
 	if proxy.primary.ElectionKey == electionKey {
 		proxy.removePrimaryServer()
 	} else {
@@ -100,7 +118,8 @@ func (proxy *HAProxy) RemoveNominee(electionKey string) error {
 		}
 
 	}
-	proxy.commitCurrentTx()
+	proxy.commitTx()
+	proxy.start(true)
 	return nil
 }
 
@@ -129,7 +148,7 @@ func (proxy *HAProxy) removeStandbyServers() {
 	}
 }
 
-func (proxy *HAProxy) createServer(backend string, nominee nominee.Nominee) {
+func (proxy *HAProxy) addServer(backend string, nominee nominee.Nominee) {
 	weight := int64(100)
 	if err := proxy.CreateServer(backend, &models.Server{
 		Name:    nominee.Name,
@@ -141,6 +160,8 @@ func (proxy *HAProxy) createServer(backend string, nominee nominee.Nominee) {
 	}, proxy.currentTx.ID, 0); err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("server %s added to the backend %s \n", nominee.Name, backend)
 }
 
 func (proxy *HAProxy) removeServer(name, backend string) {
@@ -151,9 +172,11 @@ func (proxy *HAProxy) removeServer(name, backend string) {
 	if err := proxy.DeleteServer(name, backend, proxy.currentTx.ID, 0); err != nil {
 		panic(err)
 	}
+
+	fmt.Printf("server %s removed from the backend %s \n", name, backend)
 }
 
-func (proxy *HAProxy) startNewTx() {
+func (proxy *HAProxy) startTx() {
 	tx, err := proxy.StartTransaction(proxy.version)
 	if err != nil {
 		panic(err)
@@ -161,11 +184,10 @@ func (proxy *HAProxy) startNewTx() {
 	proxy.currentTx = tx
 }
 
-func (proxy *HAProxy) commitCurrentTx() {
+func (proxy *HAProxy) commitTx() {
 	_, err := proxy.CommitTransaction(proxy.currentTx.ID)
 	if err != nil {
 		panic(err)
 	}
 	proxy.version++
-	proxy.currentTx = nil
 }

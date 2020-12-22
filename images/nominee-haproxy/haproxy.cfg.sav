@@ -1,5 +1,6 @@
-#kill -s USR2 $(pidof haproxy)
-#docker run -d --name haproxy --network=nominee  -v $PWD:/usr/local/etc/haproxy:ro -p 9999:9999 -p 5000:5000 -p 5001:5001  haproxy
+# _version=6
+# kill -s USR2 $(pidof haproxy)
+# docker run -d --name haproxy --network=nominee  -v $PWD:/usr/local/etc/haproxy:ro -p 9999:9999 -p 5000:5000 -p 5001:5001  haproxy
 
 global
   stats timeout 30s
@@ -28,11 +29,14 @@ frontend fe_standby
 backend be_primary
   mode tcp
   option tcp-check
+  server node2-95814244 node2:5432 check weight 100 observe layer4
 
 backend be_standby
   mode tcp
   balance roundrobin
   option tcp-check
+  server node1-95905473 node1:5432 check weight 100 observe layer4
+  server node3-124778528 node3:5432 check weight 100 observe layer4
 
 listen stats
   bind *:9999

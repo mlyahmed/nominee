@@ -1,4 +1,4 @@
-package build
+package version
 
 var (
 	Date          = "unknown"

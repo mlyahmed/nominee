@@ -9,7 +9,6 @@ type Service interface {
 	ServiceName() string
 	NomineeName() string
 	NomineeAddress() string
-	ClusterName() string
 	Nominee() nominee.Nominee
 	Lead(context context.Context, leader nominee.Nominee) error
 	Follow(context context.Context, leader nominee.Nominee) error

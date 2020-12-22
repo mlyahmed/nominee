@@ -1,7 +1,6 @@
 package race
 
 import (
-	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
@@ -15,28 +14,18 @@ type EtcdRacer struct {
 	leader  clientv3.GetResponse
 }
 
-func NewEtcdRacer(endpoints []string) Racer {
-	subContext, subCancel := context.WithCancel(context.Background())
-	logger = logrus.WithFields(logrus.Fields{"elector": "etcd"})
+func NewEtcdRacer(config *EtcdConfig) Racer {
+	logger = logrus.WithFields(logrus.Fields{"elector": "etcd", "domain": config.Domain, "cluster": config.Cluster})
 	return &EtcdRacer{
-		Etcd: &Etcd{
-			endpoints: endpoints,
-			ctx:       subContext,
-			cancel:    subCancel,
-			errorChan: make(chan error),
-			stopChan:  make(chan error),
-		},
+		Etcd: NewEtcd(config),
 	}
 }
 
 func (racer *EtcdRacer) Run(service service.Service) error {
-	logger = logger.WithFields(logrus.Fields{"racer": "etcd", "service": service.ServiceName(), "nominee": service.NomineeName()})
+	logger = logger.WithFields(logrus.Fields{"racer": "etcd", "domain": service.ServiceName(), "nominee": service.NomineeName()})
 	logger.Infof("starting...")
 
 	racer.service = service
-	racer.domain = service.ServiceName()
-	racer.cluster = service.ClusterName()
-
 	racer.setUpOSSignals()
 
 	if err := racer.newSession(); err != nil {

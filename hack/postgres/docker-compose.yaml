@@ -1,0 +1,37 @@
+version: '3'
+
+networks:
+  default:
+    external:
+      name: ${NOMINEE_NETWORK}
+
+services:
+  node1:
+    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    env_file:
+      - ../conf/docker-compose.env
+    environment:
+      - NOMINEE_POSTGRES_NODE_NAME=node1
+      - NOMINEE_POSTGRES_NODE_ADDRESS=node1
+    ports:
+      - 5411:5432
+
+  node2:
+    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    env_file:
+      - ../conf/docker-compose.env
+    environment:
+      - NOMINEE_POSTGRES_NODE_NAME=node2
+      - NOMINEE_POSTGRES_NODE_ADDRESS=node2
+    ports:
+      - 5412:5432
+
+  node3:
+    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    env_file:
+      - ../conf/docker-compose.env
+    environment:
+      - NOMINEE_POSTGRES_NODE_NAME=node3
+      - NOMINEE_POSTGRES_NODE_ADDRESS=node3
+    ports:
+      - 5413:5432

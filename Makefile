@@ -11,7 +11,7 @@ export NOMINEE_NETWORK ?= nominee
 export GOARCH ?= $(shell go env GOARCH)
 export GOOS ?= $(shell go env GOOS)
 export NOMINEE_DOCKER_REPO := nominee
-export NOMINEE_ARTIFACTS := pgnominee
+export NOMINEE_ARTIFACTS := nominee-postgres nominee-haproxy
 export NOMINEE_BIN_DIR := bin
 export BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 export SIMPLE_VERSION := $(shell (test "$(shell git describe)" = "$(shell git describe --abbrev=0)" && echo $(shell git describe)) || echo $(shell git describe --abbrev=0)-$(shell git branch --show-current))
@@ -26,12 +26,12 @@ export GO_GCFLAGS = -gcflags=all=-trimpath=./...
 export GO_BUILD_ARGS = \
   $(GO_GCFLAGS) $(GO_ASMFLAGS) \
   -ldflags="-s -w \
-    -X '$(MODULE)/pkg/build.Date=$(BUILD_DATE)' \
-    -X '$(MODULE)/pkg/build.Platform=$(GOOS)/$(GOARCH)' \
-    -X '$(MODULE)/pkg/build.SimpleVersion=$(SIMPLE_VERSION)' \
-    -X '$(MODULE)/pkg/build.GitVersion=$(GIT_VERSION)' \
-    -X '$(MODULE)/pkg/build.GitCommit=$(GIT_COMMIT)' \
-    -X '$(MODULE)/pkg/build.ImageVersion=$(IMAGE_VERSION)'"
+    -X '$(MODULE)/pkg/version.Date=$(BUILD_DATE)' \
+    -X '$(MODULE)/pkg/version.Platform=$(GOOS)/$(GOARCH)' \
+    -X '$(MODULE)/pkg/version.SimpleVersion=$(SIMPLE_VERSION)' \
+    -X '$(MODULE)/pkg/version.GitVersion=$(GIT_VERSION)' \
+    -X '$(MODULE)/pkg/version.GitCommit=$(GIT_COMMIT)' \
+    -X '$(MODULE)/pkg/version.ImageVersion=$(IMAGE_VERSION)'"
 
 rm-all create-docker-network: export NOMINEE_NETWORK_EXISTS := $(shell docker network ls | grep $(NOMINEE_NETWORK))
 
@@ -81,6 +81,7 @@ build-binaries:
 .PHONY: fix
 fix:
 	$(info fix up...)
+	@go mod vendor
 	@go mod tidy
 	@go fmt ./...
 
@@ -91,33 +92,37 @@ clean:
 	@go clean $(if $(HARD_BUILD),-cache -testcache -modcache,)
 
 ### Run Rules
-.PHONY: start-all start-pgnominee start-etcd
-start-all: start-etcd start-pgnominee
-start-pgnominee: start-docker-compose-etcd start-docker-compose-pgnominee
+.PHONY: start-all start-postgres start-etcd start-haproxy
+start-all: start-etcd start-haproxy start-postgres
+start-postgres: start-docker-compose-etcd start-docker-compose-postgres
 start-etcd: start-docker-compose-etcd
+start-haproxy: start-docker-compose-etcd start-docker-compose-haproxy
 start-docker-compose-%: create-docker-network
 	$(info starting $*...)
-	@docker-compose -f hack/$*/docker-compose.yaml up -d
+	docker-compose -f hack/$*/docker-compose.yaml up -d
 
-.PHONY: stop-all stop-pgnominee stop-etcd
-stop-all: stop-pgnominee stop-etcd
-stop-pgnominee: stop-docker-compose-pgnominee
+.PHONY: stop-all stop-postgres stop-etcd stop-haproxy
+stop-all: stop-postgres stop-haproxy stop-etcd
+stop-postgres: stop-docker-compose-postgres
 stop-etcd: stop-docker-compose-etcd
+stop-haproxy: stop-docker-compose-haproxy
 stop-docker-compose-%:
 	$(info stopping $*...)
 	@docker-compose -f hack/$*/docker-compose.yaml stop
 
-.PHONY: logs-pgnominee logs-etcd
-logs-pgnominee: logs-docker-compose-pgnominee
+.PHONY: logs-postgres logs-etcd logs-haproxy
+logs-postgres: logs-docker-compose-postgres
 logs-etcd: logs-docker-compose-etcd
+logs-haproxy: logs-docker-compose-haproxy
 logs-docker-compose-%:
 	@docker-compose -f hack/$*/docker-compose.yaml logs -f
 
-.PHONY: rm-all rm-pgnominee rm-etcd
-rm-all: stop-all rm-pgnominee rm-etcd
+.PHONY: rm-all rm-postgres rm-etcd rm-haproxy
+rm-all: stop-all rm-postgres rm-haproxy rm-etcd
 	$(if $(NOMINEE_NETWORK_EXISTS), @docker network rm $(NOMINEE_NETWORK), $(info the network $(NOMINEE_NETWORK) does not exist))
-rm-pgnominee: stop-pgnominee rm-docker-compose-pgnominee
+rm-postgres: stop-postgres rm-docker-compose-postgres
 rm-etcd: stop-etcd rm-docker-compose-etcd
+rm-haproxy: stop-haproxy rm-docker-compose-haproxy
 rm-docker-compose-%:
 	@docker-compose -f hack/$*/docker-compose.yaml rm -fsv
 

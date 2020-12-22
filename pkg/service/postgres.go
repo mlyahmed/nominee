@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	logger *logrus.Entry
+	log *logrus.Entry
 )
 
 type OSUser struct {
@@ -51,35 +51,42 @@ type DBUser struct {
 
 type Postgres struct {
 	nominee     nominee.Nominee
+	cluster     string
+	domain      string
 	stopCh      chan error
-	leader      nominee.Nominee
 	osUser      OSUser
 	replicaUser DBUser
 	dbaUser     DBUser
 	pgdata      string
-	db          *gopg.DB
 	status      status
 	role        role
+	db          *gopg.DB
+	leader      nominee.Nominee
 }
 
-func NewPostgres(nominee nominee.Nominee, replicaUser DBUser, postgresPassword string) (*Postgres, error) {
+func NewPostgres(config *PGConfig) *Postgres {
 	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
 		stopCh:  make(chan error),
-		nominee: nominee,
+		nominee: config.Nominee,
+		cluster: config.Cluster,
+		domain:  config.Domain,
 		osUser: OSUser{
 			username: postgres,
 			homeDir:  osu.HomeDir,
 		},
-		replicaUser: replicaUser,
+		replicaUser: config.Replicator,
 		dbaUser: DBUser{
 			Username: postgres,
-			Password: postgresPassword,
+			Password: config.Postgres.Password,
 		},
 		pgdata: os.Getenv("PGDATA"),
 		status: stopped,
 	}
 
+	_ = os.Setenv("POSTGRES_PASSWORD", config.Postgres.Password)
+
+	pg.nominee.Name = fmt.Sprintf("%s-%d", pg.nominee.Name, time.Now().Nanosecond())
 	pg.role = pg.lookupCurrentRole()
 	pg.osUser.uid, _ = strconv.Atoi(osu.Uid)
 	pg.osUser.gid, _ = strconv.Atoi(osu.Gid)
@@ -87,11 +94,11 @@ func NewPostgres(nominee nominee.Nominee, replicaUser DBUser, postgresPassword s
 
 	_ = pg.createPgPassFile()
 
-	logger = logrus.WithFields(logrus.Fields{
+	log = logrus.WithFields(logrus.Fields{
 		"service": pg.ServiceName(),
 		"node":    pg.NomineeName(),
 	})
-	return pg, nil
+	return pg
 }
 
 func (pg *Postgres) ServiceName() string {
@@ -107,7 +114,7 @@ func (pg *Postgres) NomineeAddress() string {
 }
 
 func (pg *Postgres) ClusterName() string {
-	return pg.nominee.Cluster
+	return pg.cluster
 }
 
 func (pg *Postgres) Nominee() nominee.Nominee {
@@ -115,7 +122,7 @@ func (pg *Postgres) Nominee() nominee.Nominee {
 }
 
 func (pg *Postgres) Lead(context context.Context, myself nominee.Nominee) error {
-	logger.Infof("postgres: promote to primary as %v ...\n", myself.Name)
+	log.Infof("postgres: promote to primary as %v ...\n", myself.Name)
 	pg.leader = myself
 	defer pg.db.Close()
 
@@ -150,7 +157,7 @@ func (pg *Postgres) Lead(context context.Context, myself nominee.Nominee) error 
 }
 
 func (pg *Postgres) Follow(ctx context.Context, leader nominee.Nominee) error {
-	logger.Infof("postgres: following the new leader: %v \n", leader.Name)
+	log.Infof("postgres: following the new leader: %v \n", leader.Name)
 	pg.leader = leader
 
 	if pg.role == virgin {
@@ -186,7 +193,7 @@ func (pg *Postgres) Follow(ctx context.Context, leader nominee.Nominee) error {
 }
 
 func (pg *Postgres) Stonith(context context.Context) error {
-	logger.Infof("postgres: stonithing... \n")
+	log.Infof("postgres: stonithing... \n")
 	_ = pg.execOSCmd(context, "pg_ctl stop", 0)
 	return nil
 }
@@ -205,7 +212,7 @@ func (pg *Postgres) start(context context.Context) error {
 			_ = os.Setenv("POSTGRES_INITDB_ARGS", fmt.Sprintf("--data-checksums %s", os.Getenv("POSTGRES_INITDB_ARGS")))
 		}
 		start := exec.CommandContext(context, "/docker-entrypoint.sh", pg.osUser.username)
-		start.Stdout, start.Stderr = logger.Writer(), logger.Writer()
+		start.Stdout, start.Stderr = log.Writer(), log.Writer()
 		pg.stopCh <- start.Run()
 		pg.status = stopped //When the Run returns it means the service is stopped.
 	}()
@@ -299,7 +306,7 @@ func (pg *Postgres) lookupCurrentRole() role {
 func (pg *Postgres) execOSCmd(context context.Context, cmd string, retries int) error {
 	for i := retries; ; i-- {
 		command := exec.CommandContext(context, "su", "-c", cmd, pg.osUser.username)
-		command.Stdout, command.Stderr = logger.Writer(), logger.Writer()
+		command.Stdout, command.Stderr = log.Writer(), log.Writer()
 
 		if err := command.Run(); err != nil {
 			if i >= 0 {
