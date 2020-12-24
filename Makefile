@@ -46,7 +46,7 @@ start-% stop-% logs-%: export _check := $(call assert-command-present,docker-com
 
 ### Build Rules
 .PHONY: all
-all: clean fix build-binaries build-images; $(info all done.)
+all: clean fix test build-binaries build-images; $(info all done.)
 
 .PHONY: build-images
 build-images: $(foreach artifact, $(NOMINEE_ARTIFACTS), build-image-$(artifact))
@@ -75,8 +75,9 @@ build-binaries:
 	go build $(GO_BUILD_ARGS) -o $(NOMINEE_BIN_DIR) ./...
 
 .PHONY: test
+test:
 	$(info test...)
-	@go test ./..
+	@go test ./...
 
 .PHONY: fix
 fix:

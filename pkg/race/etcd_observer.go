@@ -9,11 +9,13 @@ import (
 	"go.etcd.io/etcd/clientv3/concurrency"
 )
 
+// EtcdObserver ...
 type EtcdObserver struct {
 	*Etcd
 	proxy.Proxy
 }
 
+// NewEtcdObserver ...
 func NewEtcdObserver(config *EtcdConfig) Observer {
 	logger = logrus.WithFields(logrus.Fields{"observer": "etcd"})
 	return &EtcdObserver{
@@ -21,6 +23,7 @@ func NewEtcdObserver(config *EtcdConfig) Observer {
 	}
 }
 
+// Observe ...
 func (observer *EtcdObserver) Observe(proxy proxy.Proxy) error {
 	observer.Proxy = proxy
 	observer.setUpOSSignals()

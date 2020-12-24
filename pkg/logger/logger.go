@@ -31,7 +31,7 @@ var (
 	// messages.
 	G = GetLogger
 
-	// L is an alias for the standard logger.
+	// S is an alias for the standard logger.
 	S = logrus.NewEntry(logrus.StandardLogger()).WithFields(logrus.Fields{
 		"buildDate":          version.Date,
 		"buildPlatform":      version.Platform,

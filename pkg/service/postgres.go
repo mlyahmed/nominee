@@ -37,6 +37,7 @@ var (
 	log *logrus.Entry
 )
 
+// OSUser ...
 type OSUser struct {
 	username string
 	uid      int
@@ -44,11 +45,13 @@ type OSUser struct {
 	homeDir  string
 }
 
+// DBUser ...
 type DBUser struct {
 	Username string
 	Password string
 }
 
+// Postgres ...
 type Postgres struct {
 	nominee     nominee.Nominee
 	cluster     string
@@ -64,6 +67,7 @@ type Postgres struct {
 	leader      nominee.Nominee
 }
 
+// NewPostgres ...
 func NewPostgres(config *PGConfig) *Postgres {
 	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
@@ -101,26 +105,27 @@ func NewPostgres(config *PGConfig) *Postgres {
 	return pg
 }
 
+// ServiceName ...
 func (pg *Postgres) ServiceName() string {
 	return "postgres"
 }
 
+// NomineeName ...
 func (pg *Postgres) NomineeName() string {
 	return pg.nominee.Name
 }
 
+// NomineeAddress ...
 func (pg *Postgres) NomineeAddress() string {
 	return pg.nominee.Address
 }
 
-func (pg *Postgres) ClusterName() string {
-	return pg.cluster
-}
-
+// Nominee ...
 func (pg *Postgres) Nominee() nominee.Nominee {
 	return pg.nominee
 }
 
+// Lead ...
 func (pg *Postgres) Lead(context context.Context, myself nominee.Nominee) error {
 	log.Infof("postgres: promote to primary as %v ...\n", myself.Name)
 	pg.leader = myself
@@ -156,6 +161,7 @@ func (pg *Postgres) Lead(context context.Context, myself nominee.Nominee) error 
 	return nil
 }
 
+// Follow ...
 func (pg *Postgres) Follow(ctx context.Context, leader nominee.Nominee) error {
 	log.Infof("postgres: following the new leader: %v \n", leader.Name)
 	pg.leader = leader
@@ -192,12 +198,14 @@ func (pg *Postgres) Follow(ctx context.Context, leader nominee.Nominee) error {
 	return nil
 }
 
+// Stonith ...
 func (pg *Postgres) Stonith(context context.Context) error {
 	log.Infof("postgres: stonithing... \n")
 	_ = pg.execOSCmd(context, "pg_ctl stop", 0)
 	return nil
 }
 
+// StopChan ...
 func (pg *Postgres) StopChan() nominee.StopChan {
 	return pg.stopCh
 }

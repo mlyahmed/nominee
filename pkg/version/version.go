@@ -1,10 +1,21 @@
 package version
 
 var (
-	Date          = "unknown"
-	Platform      = "unknown"
+	// Date ...
+	Date = "unknown"
+
+	// Platform ...
+	Platform = "unknown"
+
+	// SimpleVersion ...
 	SimpleVersion = "unknown"
-	GitVersion    = "unknown"
-	GitCommit     = "unknown"
-	ImageVersion  = "unknown"
+
+	// GitVersion ...
+	GitVersion = "unknown"
+
+	// GitCommit ...
+	GitCommit = "unknown"
+
+	// ImageVersion ...
+	ImageVersion = "unknown"
 )

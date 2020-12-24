@@ -8,12 +8,14 @@ import (
 	"go.etcd.io/etcd/clientv3/concurrency"
 )
 
+// EtcdRacer ...
 type EtcdRacer struct {
 	*Etcd
 	service service.Service
 	leader  clientv3.GetResponse
 }
 
+// NewEtcdRacer ...
 func NewEtcdRacer(config *EtcdConfig) Racer {
 	logger = logrus.WithFields(logrus.Fields{"elector": "etcd", "domain": config.Domain, "cluster": config.Cluster})
 	return &EtcdRacer{
@@ -21,6 +23,7 @@ func NewEtcdRacer(config *EtcdConfig) Racer {
 	}
 }
 
+// Run ...
 func (racer *EtcdRacer) Run(service service.Service) error {
 	logger = logger.WithFields(logrus.Fields{"racer": "etcd", "domain": service.ServiceName(), "nominee": service.NomineeName()})
 	logger.Infof("starting...")

@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+// Etcd ...
 type Etcd struct {
 	domain    string
 	cluster   string
@@ -33,6 +34,7 @@ var (
 	logger *logrus.Entry
 )
 
+// NewEtcd ...
 func NewEtcd(config *EtcdConfig) *Etcd {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Etcd{
@@ -46,6 +48,7 @@ func NewEtcd(config *EtcdConfig) *Etcd {
 	}
 }
 
+// Cleanup ...
 func (etcd *Etcd) Cleanup() {
 	if etcd.client != nil {
 		_ = etcd.client.Close()
@@ -56,6 +59,7 @@ func (etcd *Etcd) Cleanup() {
 	}
 }
 
+// StopChan ...
 func (etcd *Etcd) StopChan() nominee.StopChan {
 	return etcd.stopChan
 }

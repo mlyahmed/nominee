@@ -6,6 +6,7 @@ import (
 	"github/mlyahmed.io/nominee/pkg/nominee"
 )
 
+// PGConfig ...
 type PGConfig struct {
 	*config.BasicConfig
 	Nominee    nominee.Nominee
@@ -13,6 +14,7 @@ type PGConfig struct {
 	Replicator DBUser
 }
 
+// NewPostgresConfig ...
 func NewPostgresConfig(basic *config.BasicConfig) *PGConfig {
 	return &PGConfig{
 		BasicConfig: basic,
@@ -22,6 +24,7 @@ func NewPostgresConfig(basic *config.BasicConfig) *PGConfig {
 	}
 }
 
+// LoadConfig ...
 func (conf *PGConfig) LoadConfig(ctx context.Context) {
 	conf.BasicConfig.LoadConfig(ctx)
 	config.SetDefault("NOMINEE_POSTGRES_NODE_PORT", 5432)

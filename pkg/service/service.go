@@ -5,6 +5,7 @@ import (
 	"github/mlyahmed.io/nominee/pkg/nominee"
 )
 
+// Service ...
 type Service interface {
 	ServiceName() string
 	NomineeName() string

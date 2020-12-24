@@ -11,6 +11,7 @@ import (
 	"sync"
 )
 
+// HAProxy ...
 type HAProxy struct {
 	*configuration.Client
 	currentTx *models.Transaction
@@ -27,6 +28,7 @@ const (
 	standbyBackend string = "be_standby"
 )
 
+// NewHAProxy ...
 func NewHAProxy(config *HAProxyConfig) *HAProxy {
 	proxy := HAProxy{Client: &configuration.Client{}, mutex: &sync.Mutex{}}
 	proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
@@ -74,6 +76,7 @@ func (proxy *HAProxy) start(reload bool) {
 	}(reload)
 }
 
+// PushNominees ...
 func (proxy *HAProxy) PushNominees(nominees ...nominee.Nominee) error {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()
@@ -89,6 +92,7 @@ func (proxy *HAProxy) PushNominees(nominees ...nominee.Nominee) error {
 	return nil
 }
 
+// PushLeader ...
 func (proxy *HAProxy) PushLeader(leader nominee.Nominee) error {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()
@@ -102,6 +106,7 @@ func (proxy *HAProxy) PushLeader(leader nominee.Nominee) error {
 	return nil
 }
 
+// RemoveNominee ...
 func (proxy *HAProxy) RemoveNominee(electionKey string) error {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()

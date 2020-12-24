@@ -5,6 +5,7 @@ import (
 	"github/mlyahmed.io/nominee/pkg/config"
 )
 
+// HAProxyConfig ...
 type HAProxyConfig struct {
 	*config.BasicConfig
 	ConfigFile string
@@ -12,10 +13,12 @@ type HAProxyConfig struct {
 	TxDir      string
 }
 
+// NewHAProxyConfig ...
 func NewHAProxyConfig(basic *config.BasicConfig) *HAProxyConfig {
 	return &HAProxyConfig{BasicConfig: basic}
 }
 
+// LoadConfig ...
 func (conf *HAProxyConfig) LoadConfig(ctx context.Context) {
 	conf.BasicConfig.LoadConfig(ctx)
 
