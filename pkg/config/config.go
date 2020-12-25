@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/viper"
+	"os"
 	"path"
 	"strings"
 )
@@ -66,6 +67,10 @@ func GetStringOrPanic(key string) string {
 
 // GetIntOrPanic ...
 func GetIntOrPanic(key string) int {
+	setItUp()
+	if viper.GetString(key) == "" {
+		panic(fmt.Sprintf("You must specify the env var %s to a valid int value.", key))
+	}
 	return viper.GetInt(key)
 }
 
@@ -78,4 +83,13 @@ func SetDefault(key string, value interface{}) {
 func GetString(key string) string {
 	setItUp()
 	return viper.GetString(key)
+}
+
+// Reset ...
+func Reset() {
+	for _, key := range append(viper.AllKeys(), "NOMINEE_CONF_FILE") {
+		_ = os.Unsetenv(key)
+	}
+	viper.Reset()
+	setup = false
 }

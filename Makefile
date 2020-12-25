@@ -77,7 +77,7 @@ build-binaries:
 .PHONY: test
 test:
 	$(info test...)
-	@go test ./...
+	@go test ./... -coverprofile report.coverage
 
 .PHONY: fix
 fix:
