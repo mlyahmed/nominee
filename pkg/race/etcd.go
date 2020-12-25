@@ -38,7 +38,7 @@ var (
 func NewEtcd(config *EtcdConfig) *Etcd {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Etcd{
-		endpoints: strings.Split(config.endpoints, ","),
+		endpoints: strings.Split(config.Endpoints, ","),
 		ctx:       ctx,
 		cancel:    cancel,
 		errorChan: make(chan error),

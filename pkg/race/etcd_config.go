@@ -8,9 +8,9 @@ import (
 // EtcdConfig ...
 type EtcdConfig struct {
 	*config.BasicConfig
-	endpoints string
-	username  string
-	password  string
+	Endpoints string
+	Username  string
+	Password  string
 }
 
 // NewEtcdConfig ...
@@ -23,7 +23,7 @@ func NewEtcdConfig(basic *config.BasicConfig) *EtcdConfig {
 // LoadConfig ...
 func (conf *EtcdConfig) LoadConfig(ctx context.Context) {
 	conf.BasicConfig.LoadConfig(ctx)
-	conf.endpoints = config.GetStringOrPanic("NOMINEE_ETCD_ENDPOINTS")
-	conf.username = config.GetString("NOMINEE_ETCD_USERNAME")
-	conf.password = config.GetString("NOMINEE_ETCD_PASSWORD")
+	conf.Endpoints = config.GetStringOrPanic("NOMINEE_ETCD_ENDPOINTS")
+	conf.Username = config.GetString("NOMINEE_ETCD_USERNAME")
+	conf.Password = config.GetString("NOMINEE_ETCD_PASSWORD")
 }
