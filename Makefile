@@ -90,6 +90,7 @@ fix:
 clean:
 	$(info clean up...)
 	@rm -rf $(NOMINEE_BIN_DIR)
+	@rm -rf *.coverage
 	@go clean $(if $(HARD_BUILD),-cache -testcache -modcache,)
 
 ### Run Rules
