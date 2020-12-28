@@ -3,6 +3,7 @@ package config_test
 import (
 	"fmt"
 	"github/mlyahmed.io/nominee/pkg/config"
+	"github/mlyahmed.io/nominee/pkg/testutils"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -17,8 +18,6 @@ type configurationExamples struct {
 }
 
 const (
-	succeed     = "\u2713"
-	failed      = "\u2717"
 	environment = "Environment"
 	file        = "File"
 )
@@ -118,9 +117,9 @@ func TestGetStringOrPanic_returns_the_default_Value(t *testing.T) {
 func thenGetStringOrPanicMustPanic(key string, t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatalf("\t%s\tFAIL: GetStringOrPanic(%s). Expected the program to panic. Actual not.", failed, key)
+			t.Fatalf("\t%s\tFAIL: GetStringOrPanic(%s). Expected the program to panic. Actual not.", testutils.Failed, key)
 		} else {
-			t.Logf("\t%s\tThen the program must panic.", succeed)
+			t.Logf("\t%s\tThen the program must panic.", testutils.Succeed)
 		}
 	}()
 
@@ -133,9 +132,9 @@ func thenGetStringOrPanicMustReturnTheExpectedValue(t *testing.T, cases map[stri
 		t.Logf("\tWhen Get the key %s value.", k)
 		actualVal := config.GetStringOrPanic(k)
 		if actualVal != expected {
-			t.Fatalf("\t%s\tFAIL: GetStringOrPanic(%s) expected %s. Actual %s ", failed, k, expected, actualVal)
+			t.Fatalf("\t%s\tFAIL: GetStringOrPanic(%s) expected %s. Actual %s ", testutils.Failed, k, expected, actualVal)
 		}
-		t.Logf("\t%s\tThen the value must be %s", succeed, expected)
+		t.Logf("\t%s\tThen the value must be %s", testutils.Succeed, expected)
 	}
 }
 
@@ -194,9 +193,9 @@ func thenGetStringMustReturnTheExpectedValue(cases map[string]interface{}, t *te
 		t.Logf("\tWhen Get the key %s value.", k)
 		actualVal := config.GetString(k)
 		if actualVal != expected {
-			t.Fatalf("\t%s\tFAIL: GetString(%s) expected %s. Actual %s ", failed, k, expected, actualVal)
+			t.Fatalf("\t%s\tFAIL: GetString(%s) expected %s. Actual %s ", testutils.Failed, k, expected, actualVal)
 		}
-		t.Logf("\t%s\tThen the value must be %s", succeed, expected)
+		t.Logf("\t%s\tThen the value must be %s", testutils.Succeed, expected)
 	}
 }
 
@@ -280,9 +279,9 @@ func TestGetIntOrPanic_returns_the_default_value(t *testing.T) {
 func thenGetIntOrPanicMustPanic(key string, t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
-			t.Fatalf("\t%s\tFAIL: GetIntOrPanic(%s). Expected the program to panic. Actual not.", failed, key)
+			t.Fatalf("\t%s\tFAIL: GetIntOrPanic(%s). Expected the program to panic. Actual not.", testutils.Failed, key)
 		} else {
-			t.Logf("\t%s\tThen the program must panic.", succeed)
+			t.Logf("\t%s\tThen the program must panic.", testutils.Succeed)
 		}
 	}()
 
@@ -295,9 +294,9 @@ func thenGetIntOrPanicMustReturnTheExpectedValue(cases map[string]interface{}, t
 		t.Logf("\tWhen Get the key %s value.", k)
 		actualVal := config.GetIntOrPanic(k)
 		if actualVal != expected {
-			t.Fatalf("\t%s\tFAIL: GetIntOrPanic(%s) expected %d. Actual %d ", failed, k, expected, actualVal)
+			t.Fatalf("\t%s\tFAIL: GetIntOrPanic(%s) expected %d. Actual %d ", testutils.Failed, k, expected, actualVal)
 		}
-		t.Logf("\t%s\tThen the value must be %d", succeed, expected)
+		t.Logf("\t%s\tThen the value must be %d", testutils.Succeed, expected)
 	}
 }
 
