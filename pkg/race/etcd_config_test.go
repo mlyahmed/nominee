@@ -11,7 +11,7 @@ import (
 
 func TestEtcdConfig_loads_configurations(t *testing.T) {
 
-	t.Logf("Given valid Etcd configurations")
+	t.Logf("Given a valid Etcd configuration")
 	{
 		for i, example := range validExamples {
 			t.Run("", func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestEtcdConfig_loads_configurations(t *testing.T) {
 }
 
 func TestEtcdConfig_panics_when_bad_configuration(t *testing.T) {
-	t.Logf("Given invalid Etcd configurations")
+	t.Logf("Given an invalid Etcd configuration")
 	{
 		for i, example := range invalidExamples {
 			t.Run("", func(t *testing.T) {
