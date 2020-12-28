@@ -4,6 +4,7 @@ import (
 	"context"
 	"github/mlyahmed.io/nominee/pkg/config"
 	"github/mlyahmed.io/nominee/pkg/nominee"
+	"os"
 )
 
 // PGConfig ...
@@ -35,4 +36,8 @@ func (conf *PGConfig) LoadConfig(ctx context.Context) {
 	conf.Postgres.Password = config.GetStringOrPanic("NOMINEE_POSTGRES_POSTGRES_PASSWORD")
 	conf.Replicator.Username = config.GetStringOrPanic("NOMINEE_POSTGRES_REP_USERNAME")
 	conf.Replicator.Password = config.GetStringOrPanic("NOMINEE_POSTGRES_REP_PASSWORD")
+
+	if err := os.Setenv("POSTGRES_PASSWORD", conf.Postgres.Password); err != nil {
+		panic(err)
+	}
 }

@@ -88,8 +88,6 @@ func NewPostgres(config *PGConfig) *Postgres {
 		status: stopped,
 	}
 
-	_ = os.Setenv("POSTGRES_PASSWORD", config.Postgres.Password)
-
 	pg.nominee.Name = fmt.Sprintf("%s-%d", pg.nominee.Name, time.Now().Nanosecond())
 	pg.role = pg.lookupCurrentRole()
 	pg.osUser.uid, _ = strconv.Atoi(osu.Uid)

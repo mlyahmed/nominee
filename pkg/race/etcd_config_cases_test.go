@@ -9,7 +9,7 @@ type configurationExample struct {
 	password    string
 }
 
-var validConfigurationsExamples = []configurationExample{
+var validExamples = []configurationExample{
 	{
 		description: "Username/password are empty.",
 		cluster:     "nominee",
@@ -34,7 +34,7 @@ var validConfigurationsExamples = []configurationExample{
 	},
 }
 
-var invalidConfigurationExamples = []configurationExample{
+var invalidExamples = []configurationExample{
 	{
 		description: "the cluster name is missing",
 		domain:      "postgres",
