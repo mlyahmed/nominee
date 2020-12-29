@@ -1,4 +1,4 @@
-package race_test
+package etcdconfig_test
 
 type configurationExample struct {
 	description string

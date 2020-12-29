@@ -1,4 +1,4 @@
-package race
+package etcd
 
 import (
 	"github.com/coreos/etcd/clientv3"
@@ -6,25 +6,28 @@ import (
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/proxy"
-	"go.etcd.io/etcd/clientv3/concurrency"
+	"github/mlyahmed.io/nominee/pkg/race"
+	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
 )
 
-// EtcdObserver ...
-type EtcdObserver struct {
+// Observer ...
+type Observer struct {
 	*Etcd
 	proxy.Proxy
+	client   Client
+	election Election
 }
 
 // NewEtcdObserver ...
-func NewEtcdObserver(config *EtcdConfig) Observer {
+func NewEtcdObserver(config *etcdconfig.Config) race.Observer {
 	logger = logrus.WithFields(logrus.Fields{"observer": "etcd"})
-	return &EtcdObserver{
+	return &Observer{
 		Etcd: NewEtcd(config),
 	}
 }
 
 // Observe ...
-func (observer *EtcdObserver) Observe(proxy proxy.Proxy) error {
+func (observer *Observer) Observe(proxy proxy.Proxy) error {
 	observer.Proxy = proxy
 	observer.setUpOSSignals()
 	if err := observer.subscribeToElection(); err != nil {
@@ -38,7 +41,7 @@ func (observer *EtcdObserver) Observe(proxy proxy.Proxy) error {
 	return nil
 }
 
-func (observer *EtcdObserver) observeNominees() {
+func (observer *Observer) observeNominees() {
 	go func() {
 		watch := observer.client.Watch(observer.ctx, observer.electionKey(), clientv3.WithPrefix())
 		for response := range watch {
@@ -64,7 +67,7 @@ func (observer *EtcdObserver) observeNominees() {
 	}()
 }
 
-func (observer *EtcdObserver) observeLeaderNominee() {
+func (observer *Observer) observeLeaderNominee() {
 	go func() {
 		observe := observer.election.Observe(observer.ctx)
 		for leader := range observe {
@@ -77,7 +80,7 @@ func (observer *EtcdObserver) observeLeaderNominee() {
 	}()
 }
 
-func (observer *EtcdObserver) pushCurrentNominees() {
+func (observer *Observer) pushCurrentNominees() {
 	response, err := observer.client.Get(observer.ctx, observer.electionKey(), clientv3.WithPrefix())
 	if err != nil {
 		panic(err)
@@ -93,13 +96,15 @@ func (observer *EtcdObserver) pushCurrentNominees() {
 	}
 }
 
-func (observer *EtcdObserver) subscribeToElection() error {
+func (observer *Observer) subscribeToElection() error {
 	logger.Infof("Subscribe to the election %s...", observer.electionKey())
-	if err := observer.Etcd.newSession(); err != nil {
+	var err error
+	if observer.client, err = observer.Connect(observer.ctx, observer.Config); err != nil {
 		return err
 	}
 	logger.Infof("new election...")
-	observer.election = concurrency.NewElection(observer.session, observer.electionKey())
-	logger.Infof("session created.")
+	observer.election, _ = observer.NewElection(observer.ctx, observer.electionKey())
+
+	logger.Infof("subscribed to Etcd server.")
 	return nil
 }

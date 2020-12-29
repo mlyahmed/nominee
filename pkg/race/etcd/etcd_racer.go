@@ -1,30 +1,29 @@
-package race
+package etcd
 
 import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
 	"github/mlyahmed.io/nominee/pkg/service"
-	"go.etcd.io/etcd/clientv3/concurrency"
 )
 
-// EtcdRacer ...
-type EtcdRacer struct {
+// Racer ...
+type Racer struct {
 	*Etcd
-	service service.Service
-	leader  clientv3.GetResponse
+	service  service.Service
+	leader   clientv3.GetResponse
+	election Election
 }
 
 // NewEtcdRacer ...
-func NewEtcdRacer(config *EtcdConfig) Racer {
+func NewEtcdRacer(config *etcdconfig.Config) *Racer {
 	logger = logrus.WithFields(logrus.Fields{"elector": "etcd", "domain": config.Domain, "cluster": config.Cluster})
-	return &EtcdRacer{
-		Etcd: NewEtcd(config),
-	}
+	return &Racer{Etcd: NewEtcd(config)}
 }
 
 // Run ...
-func (racer *EtcdRacer) Run(service service.Service) error {
+func (racer *Racer) Run(service service.Service) error {
 	logger = logger.WithFields(logrus.Fields{"racer": "etcd", "domain": service.ServiceName(), "nominee": service.NomineeName()})
 	logger.Infof("starting...")
 
@@ -43,30 +42,30 @@ func (racer *EtcdRacer) Run(service service.Service) error {
 	return nil
 }
 
-func (racer *EtcdRacer) newSession() error {
-	if err := racer.Etcd.newSession(); err != nil {
+func (racer *Racer) newSession() error {
+	if _, err := racer.Connect(racer.ctx, racer.Config); err != nil {
 		return err
 	}
 
 	if len(racer.leader.Kvs) > 0 {
 		logger.Infof("resume election...")
-		racer.election = concurrency.ResumeElection(racer.session, racer.electionKey(), string(racer.leader.Kvs[0].Key), racer.leader.Kvs[0].CreateRevision)
+		racer.election, _ = racer.ResumeElection(racer.ctx, racer.electionKey(), racer.leader)
 	} else {
 		logger.Infof("new election...")
-		racer.election = concurrency.NewElection(racer.session, racer.electionKey())
+		racer.election, _ = racer.NewElection(racer.ctx, racer.electionKey())
 	}
 	logger.Infof("session created.")
 	return nil
 }
 
-func (racer *EtcdRacer) conquer() {
+func (racer *Racer) conquer() {
 	go func() {
 		logger.Infof("conquer as %v...", racer.service.NomineeName())
 		racer.errorChan <- racer.election.Campaign(racer.ctx, racer.service.Nominee().Marshal())
 	}()
 }
 
-func (racer *EtcdRacer) observeLeader() {
+func (racer *Racer) observeLeader() {
 	go func() {
 		observe := racer.election.Observe(racer.ctx)
 		for leader := range observe {
@@ -76,7 +75,7 @@ func (racer *EtcdRacer) observeLeader() {
 	}()
 }
 
-func (racer *EtcdRacer) changeLeader(leader clientv3.GetResponse) {
+func (racer *Racer) changeLeader(leader clientv3.GetResponse) {
 	amICurrentlyTheLeader := racer.amITheLeader()
 	amITheNewLeader := racer.toNominee(leader).Name == racer.service.NomineeName()
 	racer.leader = leader
@@ -101,14 +100,14 @@ func (racer *EtcdRacer) changeLeader(leader clientv3.GetResponse) {
 	}
 }
 
-func (racer *EtcdRacer) retry() error {
+func (racer *Racer) retry() error {
 	_ = racer.Etcd.retry()
 	racer.conquer()
 	racer.observeLeader()
 	return nil
 }
 
-func (racer *EtcdRacer) stonith() {
+func (racer *Racer) stonith() {
 	logger.Infof("stonithing...")
 
 	if racer.amITheLeader() {
@@ -120,14 +119,14 @@ func (racer *EtcdRacer) stonith() {
 	racer.Etcd.stonith()
 }
 
-func (racer *EtcdRacer) leaderNominee() nominee.Nominee {
+func (racer *Racer) leaderNominee() nominee.Nominee {
 	return racer.toNominee(racer.leader)
 }
 
-func (racer *EtcdRacer) amITheLeader() bool {
+func (racer *Racer) amITheLeader() bool {
 	return racer.leaderNominee().Name == racer.service.NomineeName()
 }
 
-func (racer *EtcdRacer) nomineeStopChan() nominee.StopChan {
+func (racer *Racer) nomineeStopChan() nominee.StopChan {
 	return racer.service.StopChan()
 }

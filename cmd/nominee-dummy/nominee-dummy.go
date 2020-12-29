@@ -11,24 +11,17 @@ import (
 
 func main() {
 	log := logger.G(context.Background())
-
-	basicConfig := config.NewBasicConfig()
-
-	pgConfig := service.NewPostgresConfig(basicConfig)
-	pgConfig.LoadConfig(context.Background())
-
-	etcdConfig := etcdconfig.NewEtcdConfig(basicConfig)
+	etcdConfig := etcdconfig.NewEtcdConfig(config.NewBasicConfig())
 	etcdConfig.LoadConfig(context.Background())
-
 	etcdRacer := etcd.NewEtcdRacer(etcdConfig)
 	defer etcdRacer.Cleanup()
 
 	log.Infof("starting...")
-	if err := etcdRacer.Run(service.NewPostgres(pgConfig)); err != nil {
-		log.Errorf("pgnominee: %v \n", err)
+	if err := etcdRacer.Run(service.NewDummy()); err != nil {
+		log.Errorf("dummy: %v \n", err)
 		return
 	}
 
 	<-etcdRacer.StopChan()
-	log.Infof("pgnominee: stopped.")
+	log.Infof("dummy: stopped.")
 }

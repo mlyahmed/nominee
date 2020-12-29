@@ -3,7 +3,7 @@ package nominee
 import "encoding/json"
 
 // StopChan ...
-type StopChan <-chan error
+type StopChan <-chan struct{}
 
 // Nominee ...
 type Nominee struct {

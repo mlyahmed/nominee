@@ -1,29 +1,30 @@
-package race
+package etcdconfig
 
 import (
 	"context"
 	"github/mlyahmed.io/nominee/pkg/config"
+	"strings"
 )
 
-// EtcdConfig ...
-type EtcdConfig struct {
+// Config ...
+type Config struct {
 	*config.BasicConfig
-	Endpoints string
+	Endpoints []string
 	Username  string
 	Password  string
 }
 
 // NewEtcdConfig ...
-func NewEtcdConfig(basic *config.BasicConfig) *EtcdConfig {
-	return &EtcdConfig{
+func NewEtcdConfig(basic *config.BasicConfig) *Config {
+	return &Config{
 		BasicConfig: basic,
 	}
 }
 
 // LoadConfig ...
-func (conf *EtcdConfig) LoadConfig(ctx context.Context) {
+func (conf *Config) LoadConfig(ctx context.Context) {
 	conf.BasicConfig.LoadConfig(ctx)
-	conf.Endpoints = config.GetStringOrPanic("NOMINEE_ETCD_ENDPOINTS")
+	conf.Endpoints = strings.Split(config.GetStringOrPanic("NOMINEE_ETCD_ENDPOINTS"), ",")
 	conf.Username = config.GetString("NOMINEE_ETCD_USERNAME")
 	conf.Password = config.GetString("NOMINEE_ETCD_PASSWORD")
 }

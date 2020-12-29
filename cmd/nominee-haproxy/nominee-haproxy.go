@@ -6,7 +6,8 @@ import (
 	"github/mlyahmed.io/nominee/pkg/config"
 	"github/mlyahmed.io/nominee/pkg/logger"
 	"github/mlyahmed.io/nominee/pkg/proxy"
-	"github/mlyahmed.io/nominee/pkg/race"
+	"github/mlyahmed.io/nominee/pkg/race/etcd"
+	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
 )
 
 func main() {
@@ -18,18 +19,18 @@ func main() {
 	haproxyConfig := proxy.NewHAProxyConfig(basicConfig)
 	haproxyConfig.LoadConfig(ctx)
 
-	etcdConfig := race.NewEtcdConfig(basicConfig)
+	etcdConfig := etcdconfig.NewEtcdConfig(basicConfig)
 	etcdConfig.LoadConfig(ctx)
 
-	observer := race.NewEtcdObserver(etcdConfig)
-	defer observer.Cleanup()
+	etcdObserver := etcd.NewEtcdObserver(etcdConfig)
+	defer etcdObserver.Cleanup()
 
 	log.Infof("starting...")
-	if err := observer.Observe(proxy.NewHAProxy(haproxyConfig)); err != nil {
+	if err := etcdObserver.Observe(proxy.NewHAProxy(haproxyConfig)); err != nil {
 		log.Errorf("proxynominee: %v \n", err)
 		return
 	}
 
-	<-observer.StopChan()
+	<-etcdObserver.StopChan()
 	log.Infof("proxynominee: stopped.")
 }

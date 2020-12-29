@@ -56,7 +56,7 @@ type Postgres struct {
 	nominee     nominee.Nominee
 	cluster     string
 	domain      string
-	stopCh      chan error
+	stopCh      chan struct{}
 	osUser      OSUser
 	replicaUser DBUser
 	dbaUser     DBUser
@@ -71,7 +71,7 @@ type Postgres struct {
 func NewPostgres(config *PGConfig) *Postgres {
 	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
-		stopCh:  make(chan error),
+		stopCh:  make(chan struct{}),
 		nominee: config.Nominee,
 		cluster: config.Cluster,
 		domain:  config.Domain,
@@ -219,7 +219,9 @@ func (pg *Postgres) start(context context.Context) error {
 		}
 		start := exec.CommandContext(context, "/docker-entrypoint.sh", pg.osUser.username)
 		start.Stdout, start.Stderr = log.Writer(), log.Writer()
-		pg.stopCh <- start.Run()
+
+		_ = start.Run() //FIXME:
+		pg.stopCh <- struct{}{}
 		pg.status = stopped //When the Run returns it means the service is stopped.
 	}()
 
