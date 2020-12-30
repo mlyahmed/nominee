@@ -14,5 +14,5 @@ type Service interface {
 	Lead(context context.Context, leader nominee.Nominee) error
 	Follow(context context.Context, leader nominee.Nominee) error
 	Stonith(context context.Context) error
-	StopChan() nominee.StopChan
+	Stop() nominee.StopChan
 }

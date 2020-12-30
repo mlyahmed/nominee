@@ -31,6 +31,6 @@ func main() {
 		return
 	}
 
-	<-etcdObserver.StopChan()
+	<-etcdObserver.Stop()
 	log.Infof("proxynominee: stopped.")
 }

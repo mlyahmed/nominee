@@ -22,6 +22,6 @@ func main() {
 		return
 	}
 
-	<-etcdRacer.StopChan()
+	<-etcdRacer.Stop()
 	log.Infof("dummy: stopped.")
 }

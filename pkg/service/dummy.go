@@ -56,7 +56,7 @@ func (d *Dummy) Stonith(context.Context) error {
 	return nil
 }
 
-// StopChan ...
-func (d *Dummy) StopChan() nominee.StopChan {
+// Stop ...
+func (d *Dummy) Stop() nominee.StopChan {
 	return make(nominee.StopChan)
 }

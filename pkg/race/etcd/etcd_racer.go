@@ -28,6 +28,8 @@ func (racer *Racer) Run(service service.Service) error {
 	logger.Infof("starting...")
 
 	racer.service = service
+	racer.nomineeStopChan = service.Stop()
+
 	racer.setUpOSSignals()
 
 	if err := racer.newSession(); err != nil {
@@ -107,26 +109,10 @@ func (racer *Racer) retry() error {
 	return nil
 }
 
-func (racer *Racer) stonith() {
-	logger.Infof("stonithing...")
-
-	if racer.amITheLeader() {
-		logger.Infof("resign since I was leader...")
-		_ = racer.service.Stonith(racer.ctx)
-		_ = racer.election.Resign(racer.ctx)
-	}
-
-	racer.Etcd.stonith()
-}
-
 func (racer *Racer) leaderNominee() nominee.Nominee {
 	return racer.toNominee(racer.leader)
 }
 
 func (racer *Racer) amITheLeader() bool {
 	return racer.leaderNominee().Name == racer.service.NomineeName()
-}
-
-func (racer *Racer) nomineeStopChan() nominee.StopChan {
-	return racer.service.StopChan()
 }

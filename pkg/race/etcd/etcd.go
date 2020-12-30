@@ -36,7 +36,7 @@ type ServerConnector interface {
 	Connect(ctx context.Context, config *etcdconfig.Config) (Client, error)
 	NewElection(ctx context.Context, electionKey string) (Election, error)
 	ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error)
-	StopChan() nominee.StopChan
+	Stop() nominee.StopChan
 	Cleanup()
 }
 
@@ -50,11 +50,12 @@ type DefaultServerConnector struct {
 type Etcd struct {
 	ServerConnector
 	*etcdconfig.Config
-	ctx       context.Context
-	cancel    func()
-	errorChan chan error
-	stopChan  chan struct{}
-	stopped   bool
+	ctx             context.Context
+	cancel          func()
+	errorChan       chan error
+	stopChan        chan struct{}
+	stopped         bool
+	nomineeStopChan nominee.StopChan
 }
 
 var (
@@ -99,7 +100,7 @@ func (server *DefaultServerConnector) ResumeElection(ctx context.Context, electi
 }
 
 // StopChan ...
-func (server *DefaultServerConnector) StopChan() nominee.StopChan {
+func (server *DefaultServerConnector) Stop() nominee.StopChan {
 	return server.session.Done()
 }
 
@@ -132,8 +133,8 @@ func (etcd *Etcd) Cleanup() {
 	etcd.ServerConnector.Cleanup()
 }
 
-// StopChan ...
-func (etcd *Etcd) StopChan() nominee.StopChan {
+// Stop ...
+func (etcd *Etcd) Stop() nominee.StopChan {
 	return etcd.stopChan
 }
 
@@ -152,8 +153,8 @@ func (etcd *Etcd) stayTuned() {
 	go func() {
 		for {
 			select {
-			case err := <-etcd.nomineeStopChan():
-				logger.Warningf("nominee stopped because of %s.", err)
+			case stop := <-etcd.nomineeStopChan:
+				logger.Warningf("nominee stopped because of %s.", stop)
 				etcd.stonith()
 			case err := <-etcd.errorChan:
 				if err != nil {
@@ -164,7 +165,7 @@ func (etcd *Etcd) stayTuned() {
 					}
 					logger.Warnf("ignored error %s", err)
 				}
-			case <-etcd.ServerConnector.StopChan():
+			case <-etcd.ServerConnector.Stop():
 				if etcd.stopped {
 					return
 				}
@@ -211,8 +212,4 @@ func (etcd *Etcd) toNominee(response clientv3.GetResponse) nominee.Nominee {
 
 func (etcd *Etcd) electionKey() string {
 	return fmt.Sprintf("nominee/domain/%s/cluster/%s", etcd.Domain, etcd.Cluster)
-}
-
-func (etcd *Etcd) nomineeStopChan() nominee.StopChan {
-	return make(chan struct{})
 }

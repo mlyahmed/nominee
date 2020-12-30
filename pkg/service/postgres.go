@@ -203,8 +203,8 @@ func (pg *Postgres) Stonith(context context.Context) error {
 	return nil
 }
 
-// StopChan ...
-func (pg *Postgres) StopChan() nominee.StopChan {
+// Stop ...
+func (pg *Postgres) Stop() nominee.StopChan {
 	return pg.stopCh
 }
 

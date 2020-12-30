@@ -7,6 +7,7 @@ import (
 
 // MockService ...
 type MockService struct {
+	StopChan         chan struct{}
 	ServiceNameFn    func() string
 	NomineeNameFn    func() string
 	NomineeAddressFn func() string
@@ -19,7 +20,9 @@ type MockService struct {
 
 // NewMockServiceWithNominee ...
 func NewMockServiceWithNominee(node *nominee.Nominee) *MockService {
+	stopChan := make(chan struct{}, 1)
 	return &MockService{
+		StopChan: stopChan,
 		ServiceNameFn: func() string {
 			return "mockedService"
 		},
@@ -42,7 +45,7 @@ func NewMockServiceWithNominee(node *nominee.Nominee) *MockService {
 			return nil
 		},
 		StopChanFn: func() nominee.StopChan {
-			return nil
+			return stopChan
 		},
 	}
 }
@@ -88,6 +91,6 @@ func (mock *MockService) Stonith(ctx context.Context) error {
 }
 
 // StopChan ...
-func (mock *MockService) StopChan() nominee.StopChan {
+func (mock *MockService) Stop() nominee.StopChan {
 	return mock.StopChanFn()
 }

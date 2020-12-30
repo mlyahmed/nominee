@@ -152,3 +152,32 @@ func TestEtcdRacer_when_elected_then_promote_the_service(t *testing.T) {
 
 	}
 }
+
+func TestEtcdRacer_when_service_is_stopped_then_stonith(t *testing.T) {
+	t.Logf("Given EtcdRacer is running as the leader.")
+	{
+		for i, example := range examples {
+			mockService := service.NewMockServiceWithNominee(example.nominee)
+			etcdRacer := etcd.NewEtcdRacer(example.config)
+			mockServerConnector := etcd.NewMockServerConnector()
+			etcdRacer.ServerConnector = mockServerConnector
+			if err := etcdRacer.Run(mockService); err != nil {
+				t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", testutils.Failed, err)
+			}
+
+			t.Logf("\tTest %d: When the service is stopped and %s", i, example.description)
+			{
+				mockService.StopChan <- struct{}{}
+				time.Sleep(100 * time.Millisecond)
+				select {
+				case <-etcdRacer.Stop():
+					t.Logf("\t\t%s It must stonith.", testutils.Succeed)
+				default:
+					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to stonith. But actually not.", testutils.Failed)
+				}
+			}
+
+		}
+
+	}
+}

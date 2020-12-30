@@ -14,7 +14,7 @@ type MockServerConnector struct {
 	ConnectFn        func(context.Context, *etcdconfig.Config) (Client, error)
 	NewElectionFn    func(context.Context, string) (Election, error)
 	ResumeElectionFn func(context.Context, string, clientv3.GetResponse) (Election, error)
-	StopChanFn       func() nominee.StopChan
+	StopFn           func() nominee.StopChan
 	CleanupFn        func()
 }
 
@@ -48,7 +48,7 @@ func NewMockServerConnector() *MockServerConnector {
 		ResumeElectionFn: func(context.Context, string, clientv3.GetResponse) (Election, error) {
 			return electionMock, nil
 		},
-		StopChanFn: func() nominee.StopChan {
+		StopFn: func() nominee.StopChan {
 			return make(nominee.StopChan)
 		},
 		CleanupFn: func() {
@@ -101,8 +101,8 @@ func (mock *MockServerConnector) ResumeElection(ctx context.Context, electionKey
 }
 
 // StopChan ...
-func (mock *MockServerConnector) StopChan() nominee.StopChan {
-	return mock.StopChanFn()
+func (mock *MockServerConnector) Stop() nominee.StopChan {
+	return mock.StopFn()
 }
 
 // Cleanup ...
