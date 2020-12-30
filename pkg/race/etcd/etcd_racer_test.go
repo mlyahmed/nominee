@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"github/mlyahmed.io/nominee/pkg/config"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/race/etcd"
 	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
@@ -17,41 +16,6 @@ import (
 
 func init() {
 	logrus.SetOutput(ioutil.Discard)
-}
-
-type exampleSpec struct {
-	description string
-	config      *etcdconfig.Config
-	nominee     *nominee.Nominee
-}
-
-var examples = []exampleSpec{
-	{
-		description: "one node cluster",
-		config: &etcdconfig.Config{
-			Endpoints:   []string{"127.0.0.1:2379"},
-			BasicConfig: &config.BasicConfig{Cluster: "cluster-001", Domain: "domain-001"},
-		},
-		nominee: &nominee.Nominee{Name: "nominee-1", Address: "nominee-1", Port: 1245},
-	},
-	{
-		description: "three nodes cluster",
-		config: &etcdconfig.Config{
-			Endpoints:   []string{"etcd1:2379", "etcd2:2379", "etcd3:2379"},
-			BasicConfig: &config.BasicConfig{Cluster: "cluster-501", Domain: "domain-981"},
-		},
-		nominee: &nominee.Nominee{Name: "nominee-2", Address: "nominee-2", Port: 3254},
-	},
-	{
-		description: "cluster with authentication",
-		config: &etcdconfig.Config{
-			Endpoints:   []string{"node1.etcd-cluster.priv", "node2.etcd-cluster.priv", "node3.etcd-cluster.priv"},
-			Username:    "etcd-user",
-			Password:    "21154)(*&^%@#_-_-_",
-			BasicConfig: &config.BasicConfig{Cluster: "cluster-501", Domain: "domain-981"},
-		},
-		nominee: &nominee.Nominee{Name: "nominee-3", Address: "nominee-3", Port: 9778},
-	},
 }
 
 func TestEtcdRacer_must_connect_and_start_new_election(t *testing.T) {
@@ -127,15 +91,21 @@ func TestEtcdRacer_must_conquer_for_leadership(t *testing.T) {
 			t.Logf("\tTest %d: When Run EtcdRacer and %s", i, example.description)
 			{
 				conquering := false
+				mockService := service.NewMockServiceWithNominee(example.nominee)
 				etcdRacer := etcd.NewEtcdRacer(example.config)
 				mockServerConnector := etcd.NewMockServerConnector()
 				etcdRacer.ServerConnector = mockServerConnector
 				mockServerConnector.Election.CampaignFn = func(ctx context.Context, val string) error {
 					conquering = true
+					expected := example.nominee.Marshal()
+					if example.nominee.Marshal() != val {
+						t.Fatalf("\t\t%s FAIL: EtcdRacer.Run, expected conquer with value <%s> but actual is <%s>", testutils.Failed, expected, val)
+					}
+					t.Logf("\t\t%s Must conquer with marshaled nominee as value.", testutils.Succeed)
 					return nil
 				}
 
-				if err := etcdRacer.Run(service.NewMockService()); err != nil {
+				if err := etcdRacer.Run(mockService); err != nil {
 					t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", testutils.Failed, err)
 				}
 
@@ -146,6 +116,38 @@ func TestEtcdRacer_must_conquer_for_leadership(t *testing.T) {
 				}
 				t.Logf("\t\t%s Then it is conquering for leadership.", testutils.Succeed)
 			}
+		}
+
+	}
+}
+
+func TestEtcdRacer_when_elected_then_promote_the_service(t *testing.T) {
+	t.Logf("Given EtcdRacer is started.")
+	{
+		for i, example := range examples {
+			promoted := false
+			mockService := service.NewMockServiceWithNominee(example.nominee)
+			mockService.LeadFn = func(context.Context, nominee.Nominee) error {
+				promoted = true
+				return nil
+			}
+			etcdRacer := etcd.NewEtcdRacer(example.config)
+			mockServerConnector := etcd.NewMockServerConnector()
+			etcdRacer.ServerConnector = mockServerConnector
+			if err := etcdRacer.Run(mockService); err != nil {
+				t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", testutils.Failed, err)
+			}
+
+			t.Logf("\tTest %d: When it is promoted and %s", i, example.description)
+			{
+				mockServerConnector.Election.LeaderChan <- example.toEtcdResponse()
+			}
+
+			time.Sleep(10 * time.Millisecond)
+			if !promoted {
+				t.Fatalf("\t\t%s FAIL: EtcdRacer.Run, expected to promote the service. But actually not.", testutils.Failed)
+			}
+			t.Logf("\t\t%s Then the service is promoted.", testutils.Succeed)
 		}
 
 	}

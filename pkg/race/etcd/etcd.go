@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
 	"github/mlyahmed.io/nominee/pkg/signals"
-	"go.etcd.io/etcd/clientv3/concurrency"
 	"os"
 	"os/signal"
 	"time"
@@ -61,15 +61,21 @@ var (
 	logger *logrus.Entry
 )
 
+// NewEtcdConnectorServer ...
 func NewEtcdConnectorServer() *DefaultServerConnector {
 	return &DefaultServerConnector{}
 }
 
+// Connect ...
 func (server *DefaultServerConnector) Connect(ctx context.Context, config *etcdconfig.Config) (Client, error) {
 	var err error
 	logger.Infof("create new session. Endpoints %s", config.Endpoints)
 
-	if server.client, err = clientv3.New(clientv3.Config{Endpoints: config.Endpoints, DialTimeout: 1 * time.Second}); err != nil {
+	cfg := clientv3.Config{
+		Context:   ctx,
+		Endpoints: config.Endpoints,
+	}
+	if server.client, err = clientv3.New(cfg); err != nil {
 		return nil, err
 	}
 
@@ -80,20 +86,24 @@ func (server *DefaultServerConnector) Connect(ctx context.Context, config *etcdc
 	return server.client, nil
 }
 
+// NewElection ...
 func (server *DefaultServerConnector) NewElection(ctx context.Context, electionKey string) (Election, error) {
 	election := concurrency.NewElection(server.session, electionKey)
 	return election, nil
 }
 
+// ResumeElection ...
 func (server *DefaultServerConnector) ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error) {
 	election := concurrency.ResumeElection(server.session, electionKey, string(leader.Kvs[0].Key), leader.Kvs[0].CreateRevision)
 	return election, nil
 }
 
+// StopChan ...
 func (server *DefaultServerConnector) StopChan() nominee.StopChan {
 	return server.session.Done()
 }
 
+// Cleanup ...
 func (server *DefaultServerConnector) Cleanup() {
 	if server.client != nil {
 		_ = server.client.Close()

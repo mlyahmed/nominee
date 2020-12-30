@@ -11,7 +11,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/google/go-cmp v0.5.4 // indirect
 	github.com/google/renameio v1.0.0 // indirect
-	github.com/google/uuid v1.1.2 // indirect
+	github.com/google/uuid v1.1.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/haproxytech/client-native/v2 v2.1.1-0.20201217111116-ad2d913a410e
@@ -22,7 +22,6 @@ require (
 	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/viper v1.7.1
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20200427203606-3cfed13b9966 // indirect
-	go.etcd.io/etcd v3.3.25+incompatible
 	go.uber.org/zap v1.16.0 // indirect
 	golang.org/x/net v0.0.0-20201216054612-986b41b23924 // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
