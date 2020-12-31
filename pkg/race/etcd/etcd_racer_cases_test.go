@@ -7,6 +7,7 @@ import (
 	"github/mlyahmed.io/nominee/pkg/config"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
+	"time"
 )
 
 type exampleSpec struct {
@@ -19,8 +20,9 @@ func (example exampleSpec) toEtcdResponse() clientv3.GetResponse {
 	return clientv3.GetResponse{
 		Kvs: []*mvccpb.KeyValue{
 			{
-				Key:   uuid.NodeID(),
-				Value: []byte(example.nominee.Marshal()),
+				Key:            uuid.NodeID(),
+				Value:          []byte(example.nominee.Marshal()),
+				CreateRevision: time.Now().Unix(),
 			},
 		},
 	}

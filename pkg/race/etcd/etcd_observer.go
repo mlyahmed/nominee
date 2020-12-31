@@ -34,7 +34,7 @@ func (observer *Observer) Observe(proxy proxy.Proxy) error {
 		return err
 	}
 
-	observer.stayTuned()
+	observer.setUpChannels()
 	observer.pushCurrentNominees()
 	observer.observeLeaderNominee()
 	observer.observeNominees()

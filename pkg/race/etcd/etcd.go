@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
 	"github/mlyahmed.io/nominee/pkg/signals"
 	"os"
 	"os/signal"
-	"time"
 )
 
 // Client ...
@@ -27,7 +25,6 @@ type Client interface {
 // Election ...
 type Election interface {
 	Campaign(ctx context.Context, val string) error
-	Resign(ctx context.Context) (err error)
 	Observe(ctx context.Context) <-chan clientv3.GetResponse
 }
 
@@ -56,6 +53,7 @@ type Etcd struct {
 	stopChan        chan struct{}
 	stopped         bool
 	nomineeStopChan nominee.StopChan
+	failBackFn      func() error
 }
 
 var (
@@ -88,7 +86,7 @@ func (server *DefaultServerConnector) Connect(ctx context.Context, config *etcdc
 }
 
 // NewElection ...
-func (server *DefaultServerConnector) NewElection(ctx context.Context, electionKey string) (Election, error) {
+func (server *DefaultServerConnector) NewElection(_ context.Context, electionKey string) (Election, error) {
 	election := concurrency.NewElection(server.session, electionKey)
 	return election, nil
 }
@@ -118,7 +116,7 @@ func (server *DefaultServerConnector) Cleanup() {
 // NewEtcd ...
 func NewEtcd(config *etcdconfig.Config) *Etcd {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Etcd{
+	etcd := &Etcd{
 		Config:          config,
 		ctx:             ctx,
 		cancel:          cancel,
@@ -126,6 +124,8 @@ func NewEtcd(config *etcdconfig.Config) *Etcd {
 		stopChan:        make(chan struct{}),
 		ServerConnector: NewEtcdConnectorServer(),
 	}
+
+	return etcd
 }
 
 // Cleanup ...
@@ -149,7 +149,7 @@ func (etcd *Etcd) setUpOSSignals() {
 	}()
 }
 
-func (etcd *Etcd) stayTuned() {
+func (etcd *Etcd) setUpChannels() {
 	go func() {
 		for {
 			select {
@@ -158,41 +158,17 @@ func (etcd *Etcd) stayTuned() {
 				etcd.stonith()
 			case err := <-etcd.errorChan:
 				if err != nil {
-					if errors.Cause(err) == context.Canceled {
-						logger.Errorf("receive cancel error. Proceed to STOP !")
-						etcd.stonith()
-						return
-					}
-					logger.Warnf("ignored error %s", err)
+					etcd.stonith()
 				}
 			case <-etcd.ServerConnector.Stop():
 				if etcd.stopped {
 					return
 				}
 				logger.Infof("session closed. Retrying...")
-				_ = etcd.retry()
+				_ = etcd.failBackFn()
 			}
 		}
 	}()
-}
-
-func (etcd *Etcd) retry() error {
-	logger.Infof("retrying...")
-
-	etcd.cancel()
-	etcd.ctx, etcd.cancel = context.WithCancel(context.Background())
-
-	for {
-		if _, err := etcd.Connect(etcd.ctx, etcd.Config); err != nil {
-			logger.Errorf("error when retry new session, %s", err)
-			time.Sleep(time.Second * 2)
-		} else {
-			logger.Info("new session created.")
-			break
-		}
-	}
-
-	return nil
 }
 
 func (etcd *Etcd) stonith() {

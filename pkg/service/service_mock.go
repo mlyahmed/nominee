@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/testutils"
+	"testing"
 )
 
 // MockService ...
 type MockService struct {
+	t                *testing.T
 	StopChan         chan struct{}
 	ServiceNameFn    func() string
 	NomineeNameFn    func() string
@@ -19,7 +22,7 @@ type MockService struct {
 }
 
 // NewMockServiceWithNominee ...
-func NewMockServiceWithNominee(node *nominee.Nominee) *MockService {
+func NewMockServiceWithNominee(t *testing.T, node *nominee.Nominee) *MockService {
 	stopChan := make(chan struct{}, 1)
 	return &MockService{
 		StopChan: stopChan,
@@ -35,13 +38,16 @@ func NewMockServiceWithNominee(node *nominee.Nominee) *MockService {
 		NomineeFn: func() nominee.Nominee {
 			return *node
 		},
-		LeadFn: func(context.Context, nominee.Nominee) error {
+		LeadFn: func(ctx context.Context, nominee nominee.Nominee) error {
+			t.Fatalf("\t\t\t%s FATAL: Lead function not implemented.", testutils.Failed)
 			return nil
 		},
-		FollowFn: func(context.Context, nominee.Nominee) error {
+		FollowFn: func(ctx context.Context, n nominee.Nominee) error {
+			t.Fatalf("\t\t\t%s FATAL: Follow function not implemented.", testutils.Failed)
 			return nil
 		},
-		StonithFn: func(context.Context) error {
+		StonithFn: func(ctx context.Context) error {
+			t.Fatalf("\t\t\t%s FATAL: Stonith function not implemented.", testutils.Failed)
 			return nil
 		},
 		StopChanFn: func() nominee.StopChan {
@@ -51,8 +57,8 @@ func NewMockServiceWithNominee(node *nominee.Nominee) *MockService {
 }
 
 // NewMockService ...
-func NewMockService() *MockService {
-	return NewMockServiceWithNominee(&nominee.Nominee{})
+func NewMockService(t *testing.T) *MockService {
+	return NewMockServiceWithNominee(t, &nominee.Nominee{})
 }
 
 // ServiceName ...

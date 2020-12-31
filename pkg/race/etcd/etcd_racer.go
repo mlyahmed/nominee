@@ -1,6 +1,7 @@
 package etcd
 
 import (
+	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/nominee"
@@ -19,7 +20,9 @@ type Racer struct {
 // NewEtcdRacer ...
 func NewEtcdRacer(config *etcdconfig.Config) *Racer {
 	logger = logrus.WithFields(logrus.Fields{"elector": "etcd", "domain": config.Domain, "cluster": config.Cluster})
-	return &Racer{Etcd: NewEtcd(config)}
+	racer := Racer{Etcd: NewEtcd(config)}
+	racer.failBackFn = func() error { return racer.connect(true) }
+	return &racer
 }
 
 // Run ...
@@ -31,20 +34,22 @@ func (racer *Racer) Run(service service.Service) error {
 	racer.nomineeStopChan = service.Stop()
 
 	racer.setUpOSSignals()
+	racer.setUpChannels()
 
-	if err := racer.newSession(); err != nil {
+	if err := racer.connect(false); err != nil {
 		return err
 	}
-
-	racer.conquer()
-	racer.observeLeader()
-	racer.stayTuned()
 
 	logger.Infof("started.")
 	return nil
 }
 
-func (racer *Racer) newSession() error {
+func (racer *Racer) connect(reconnect bool) error {
+	if reconnect {
+		racer.cancel()
+		racer.ctx, racer.cancel = context.WithCancel(context.Background())
+	}
+
 	if _, err := racer.Connect(racer.ctx, racer.Config); err != nil {
 		return err
 	}
@@ -56,6 +61,9 @@ func (racer *Racer) newSession() error {
 		logger.Infof("new election...")
 		racer.election, _ = racer.NewElection(racer.ctx, racer.electionKey())
 	}
+
+	racer.conquer()
+	racer.observeLeader()
 	logger.Infof("session created.")
 	return nil
 }
@@ -73,7 +81,6 @@ func (racer *Racer) observeLeader() {
 		for leader := range observe {
 			racer.changeLeader(leader)
 		}
-		logger.Debug("observation stopped.")
 	}()
 }
 
@@ -83,30 +90,16 @@ func (racer *Racer) changeLeader(leader clientv3.GetResponse) {
 	racer.leader = leader
 
 	if amITheNewLeader && amICurrentlyTheLeader {
-
 		logger.Infof("I stay the leader. Nothing to do.")
-
 	} else if amITheNewLeader && !amICurrentlyTheLeader {
-
 		logger.Infof("promoting The Service...")
 		racer.errorChan <- racer.service.Lead(racer.ctx, racer.leaderNominee())
-
 	} else if !amITheNewLeader && amICurrentlyTheLeader {
-
+		_ = racer.service.Stonith(racer.ctx)
 		racer.stonith()
-
 	} else {
-
 		racer.errorChan <- racer.service.Follow(racer.ctx, racer.leaderNominee())
-
 	}
-}
-
-func (racer *Racer) retry() error {
-	_ = racer.Etcd.retry()
-	racer.conquer()
-	racer.observeLeader()
-	return nil
 }
 
 func (racer *Racer) leaderNominee() nominee.Nominee {
