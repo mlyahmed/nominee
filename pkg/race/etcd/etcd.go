@@ -33,7 +33,7 @@ type ServerConnector interface {
 	Connect(ctx context.Context, config *etcdconfig.Config) (Client, error)
 	NewElection(ctx context.Context, electionKey string) (Election, error)
 	ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error)
-	Stop() nominee.StopChan
+	Stop() <-chan struct{}
 	Cleanup()
 }
 
@@ -98,7 +98,7 @@ func (server *DefaultServerConnector) ResumeElection(ctx context.Context, electi
 }
 
 // StopChan ...
-func (server *DefaultServerConnector) Stop() nominee.StopChan {
+func (server *DefaultServerConnector) Stop() <-chan struct{} {
 	return server.session.Done()
 }
 
@@ -164,7 +164,7 @@ func (etcd *Etcd) setUpChannels() {
 				if etcd.stopped {
 					return
 				}
-				logger.Infof("session closed. Retrying...")
+				logger.Infof("session closed. Try to reconnect...")
 				_ = etcd.failBackFn()
 			}
 		}

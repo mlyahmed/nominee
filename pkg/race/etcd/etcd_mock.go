@@ -3,12 +3,12 @@ package etcd
 import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
-	"github/mlyahmed.io/nominee/pkg/nominee"
 	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
+	"testing"
 	"time"
 )
 
-type MockServerStatistics struct {
+type MockServerRecord struct {
 	ConnectHits        int
 	NewElectionHits    int
 	ResumeElectionHits int
@@ -18,14 +18,15 @@ type MockServerStatistics struct {
 
 // MockServerConnector ...
 type MockServerConnector struct {
+	t *testing.T
+	*MockServerRecord
 	StopChan         chan struct{}
 	Client           *MockClient
-	Statistics       *MockServerStatistics
 	Election         *MockElection
 	ConnectFn        func(context.Context, *etcdconfig.Config) (Client, error)
 	NewElectionFn    func(context.Context, string) (Election, error)
 	ResumeElectionFn func(context.Context, string, clientv3.GetResponse) (Election, error)
-	StopFn           func() nominee.StopChan
+	StopFn           func() <-chan struct{}
 	CleanupFn        func()
 }
 
@@ -35,18 +36,25 @@ type MockClient struct {
 	GetFn   func(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 }
 
+type MockElectionRecord struct {
+	CampaignHits  int
+	ObserveHits   int
+	ElectionKey   string
+	CampaignValue string
+	Leader        clientv3.GetResponse
+}
+
 // MockElection ...
 type MockElection struct {
+	*MockElectionRecord
 	LeaderChan chan clientv3.GetResponse
 	CampaignFn func(ctx context.Context, val string) error
 	ObserveFn  func(ctx context.Context) <-chan clientv3.GetResponse
 }
 
 // NewMockServerConnector ...
-func NewMockServerConnector() *MockServerConnector {
-	mock := &MockServerConnector{
-		Statistics: &MockServerStatistics{},
-	}
+func NewMockServerConnector(t *testing.T) *MockServerConnector {
+	mock := &MockServerConnector{MockServerRecord: &MockServerRecord{}}
 
 	mock.ConnectFn = func(ctx context.Context, config *etcdconfig.Config) (Client, error) {
 		return mock.Client, nil
@@ -60,17 +68,11 @@ func NewMockServerConnector() *MockServerConnector {
 		return mock.Election, nil
 	}
 
-	mock.StopFn = func() nominee.StopChan {
+	mock.StopFn = func() <-chan struct{} {
 		return mock.StopChan
 	}
 
 	mock.CleanupFn = func() {
-		select {
-		case <-mock.StopChan:
-			// Make sure the chan is closed
-		default:
-			close(mock.StopChan)
-		}
 	}
 
 	return mock
@@ -92,7 +94,8 @@ func NewMockClient() *MockClient {
 func NewMockElection() *MockElection {
 	leaderChan := make(chan clientv3.GetResponse, 1)
 	return &MockElection{
-		LeaderChan: leaderChan,
+		LeaderChan:         leaderChan,
+		MockElectionRecord: &MockElectionRecord{},
 		CampaignFn: func(ctx context.Context, val string) error {
 			<-ctx.Done()
 			return nil
@@ -107,37 +110,42 @@ func NewMockElection() *MockElection {
 func (mock *MockServerConnector) Connect(ctx context.Context, config *etcdconfig.Config) (Client, error) {
 	mock.StopChan = make(chan struct{}, 1)
 	mock.Client = NewMockClient()
-	mock.Statistics.ConnectHits++
+	mock.ConnectHits++
 	return mock.ConnectFn(ctx, config)
 }
 
 // NewElection ...
 func (mock *MockServerConnector) NewElection(ctx context.Context, electionKey string) (Election, error) {
 	mock.Election = NewMockElection()
-	mock.Statistics.NewElectionHits++
+	mock.Election.ElectionKey = electionKey
+	mock.NewElectionHits++
 	return mock.NewElectionFn(ctx, electionKey)
 }
 
 // ResumeElection ...
 func (mock *MockServerConnector) ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error) {
 	mock.Election = NewMockElection()
-	mock.Statistics.ResumeElectionHits++
+	mock.Election.ElectionKey = electionKey
+	mock.Election.Leader = leader
+	mock.ResumeElectionHits++
 	return mock.ResumeElectionFn(ctx, electionKey, leader)
 }
 
 // StopChan ...
-func (mock *MockServerConnector) Stop() nominee.StopChan {
+func (mock *MockServerConnector) Stop() <-chan struct{} {
+	mock.StopHits++
 	return mock.StopFn()
 }
 
 // Cleanup ...
 func (mock *MockServerConnector) Cleanup() {
+	mock.CleanupHits++
 	mock.CleanupFn()
 }
 
 // CloseSession ...
 func (mock *MockServerConnector) CloseSession() {
-	mock.StopChan <- struct{}{}
+	close(mock.StopChan)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -153,11 +161,14 @@ func (mock *MockClient) Get(ctx context.Context, key string, opts ...clientv3.Op
 
 // Campaign ...
 func (mock *MockElection) Campaign(ctx context.Context, val string) error {
+	mock.CampaignHits++
+	mock.CampaignValue = val
 	return mock.CampaignFn(ctx, val)
 }
 
 // Observe ...
 func (mock *MockElection) Observe(ctx context.Context) <-chan clientv3.GetResponse {
+	mock.ObserveHits++
 	go func() {
 		<-ctx.Done()
 		close(mock.LeaderChan)

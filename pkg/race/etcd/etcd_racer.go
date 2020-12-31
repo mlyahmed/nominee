@@ -34,12 +34,12 @@ func (racer *Racer) Run(service service.Service) error {
 	racer.nomineeStopChan = service.Stop()
 
 	racer.setUpOSSignals()
-	racer.setUpChannels()
 
 	if err := racer.connect(false); err != nil {
 		return err
 	}
 
+	racer.setUpChannels()
 	logger.Infof("started.")
 	return nil
 }
