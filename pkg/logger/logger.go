@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github/mlyahmed.io/nominee/infra/version"
 	"github/mlyahmed.io/nominee/pkg/config"
-	"github/mlyahmed.io/nominee/pkg/version"
 )
 
 type (

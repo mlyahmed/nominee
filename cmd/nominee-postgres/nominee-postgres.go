@@ -2,33 +2,19 @@ package main
 
 import (
 	"context"
+	"github/mlyahmed.io/nominee/impl/etcd"
+	"github/mlyahmed.io/nominee/impl/postgres"
 	"github/mlyahmed.io/nominee/pkg/config"
-	"github/mlyahmed.io/nominee/pkg/logger"
-	"github/mlyahmed.io/nominee/pkg/race/etcd"
-	"github/mlyahmed.io/nominee/pkg/race/etcdconfig"
-	"github/mlyahmed.io/nominee/pkg/service"
+	"github/mlyahmed.io/nominee/pkg/runner"
 )
 
 func main() {
-	log := logger.G(context.Background())
-
 	basicConfig := config.NewBasicConfig()
-
-	pgConfig := service.NewPostgresConfig(basicConfig)
-	pgConfig.LoadConfig(context.Background())
-
-	etcdConfig := etcdconfig.NewEtcdConfig(basicConfig)
-	etcdConfig.LoadConfig(context.Background())
-
-	etcdRacer := etcd.NewEtcdRacer(etcdConfig)
-	defer etcdRacer.Cleanup()
-
-	log.Infof("starting...")
-	if err := etcdRacer.Run(service.NewPostgres(pgConfig)); err != nil {
-		log.Errorf("pgnominee: %v \n", err)
-		return
-	}
-
-	<-etcdRacer.Stop()
-	log.Infof("pgnominee: stopped.")
+	pgConfig := postgres.NewPostgresConfig(basicConfig)
+	pgConfig.LoadConfig(context.TODO())
+	etcdConfig := etcd.NewEtcdConfig(basicConfig)
+	etcdConfig.LoadConfig(context.TODO())
+	node := postgres.NewPostgres(pgConfig)
+	elector := etcd.NewElector(etcdConfig)
+	_ = runner.RunElector(context.Background(), elector, node)
 }

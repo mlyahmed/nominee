@@ -26,12 +26,12 @@ export GO_GCFLAGS = -gcflags=all=-trimpath=./...
 export GO_BUILD_ARGS = \
   $(GO_GCFLAGS) $(GO_ASMFLAGS) \
   -ldflags="-s -w \
-    -X '$(MODULE)/pkg/version.Date=$(BUILD_DATE)' \
-    -X '$(MODULE)/pkg/version.Platform=$(GOOS)/$(GOARCH)' \
-    -X '$(MODULE)/pkg/version.SimpleVersion=$(SIMPLE_VERSION)' \
-    -X '$(MODULE)/pkg/version.GitVersion=$(GIT_VERSION)' \
-    -X '$(MODULE)/pkg/version.GitCommit=$(GIT_COMMIT)' \
-    -X '$(MODULE)/pkg/version.ImageVersion=$(IMAGE_VERSION)'"
+    -X '$(MODULE)/infra/version.Date=$(BUILD_DATE)' \
+    -X '$(MODULE)/infra/version.Platform=$(GOOS)/$(GOARCH)' \
+    -X '$(MODULE)/infra/version.SimpleVersion=$(SIMPLE_VERSION)' \
+    -X '$(MODULE)/infra/version.GitVersion=$(GIT_VERSION)' \
+    -X '$(MODULE)/infra/version.GitCommit=$(GIT_COMMIT)' \
+    -X '$(MODULE)/infra/version.ImageVersion=$(IMAGE_VERSION)'"
 
 rm-all create-docker-network: export NOMINEE_NETWORK_EXISTS := $(shell docker network ls | grep $(NOMINEE_NETWORK))
 
@@ -46,13 +46,13 @@ start-% stop-% logs-%: export _check := $(call assert-command-present,docker-com
 
 ### Build Rules
 .PHONY: all
-all: clean fix test build-binaries build-images; $(info all done.)
+all: clean fix build-binaries build-images; $(info all done.)
 
 .PHONY: build-images
 build-images: $(foreach artifact, $(NOMINEE_ARTIFACTS), build-image-$(artifact))
 build-image-%: build-binaries
 	$(info build docker image $*)
-	@docker build -t $(NOMINEE_DOCKER_REPO)/$*:$(IMAGE_VERSION) -f images/$*/Dockerfile .
+	@docker build -t $(NOMINEE_DOCKER_REPO)/$*:$(IMAGE_VERSION) -f docker/$*/Dockerfile .
 
 .PHONY: push-images
 push-images: docker-login $(foreach artifact, $(NOMINEE_ARTIFACTS), push-image-$(artifact)) docker-logout
@@ -69,7 +69,7 @@ docker-logout:
 	$(if $(DOCKER_PASSWORD), @docker logout)
 
 .PHONY: build-binaries
-build-binaries:
+build-binaries: test
 	$(info build binaries...)
 	@mkdir -p $(NOMINEE_BIN_DIR)
 	go build $(GO_BUILD_ARGS) -o $(NOMINEE_BIN_DIR) ./...
