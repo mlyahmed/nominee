@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 	"github/mlyahmed.io/nominee/infra"
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"testing"
 )
 
@@ -12,66 +12,64 @@ type NodeRecord struct {
 	LeadHits    int
 	FollowHits  int
 	StonithHits int
-	Leader      nominee.NodeSpec
+	Leader      node.Spec
 }
 
 // Node ...
 type Node struct {
-	*nominee.NodeBase
+	*node.Spec
 	*NodeRecord
 	t            *testing.T
 	StopChan     chan struct{}
 	DaemonNameFn func() string
-	LeadFn       func(context.Context, nominee.NodeSpec) error
-	FollowFn     func(context.Context, nominee.NodeSpec) error
+	LeadFn       func(context.Context, node.Spec) error
+	FollowFn     func(context.Context, node.Spec) error
 	StonithFn    func(context.Context) error
-	StopChanFn   func() nominee.StopChan
+	StopChanFn   func() node.StopChan
 }
 
 // NewMockServiceWithNominee ...
-func NewNode(t *testing.T, node *nominee.NodeSpec) *Node {
+func NewNode(t *testing.T, spec *node.Spec) *Node {
 	stopChan := make(chan struct{}, 1)
 	return &Node{
-		NodeBase: &nominee.NodeBase{
-			NodeSpec: node,
-		},
+		Spec:       spec,
 		NodeRecord: &NodeRecord{},
 		StopChan:   stopChan,
 		DaemonNameFn: func() string {
 			return "mockedService"
 		},
-		LeadFn: func(ctx context.Context, nominee nominee.NodeSpec) error {
+		LeadFn: func(_ context.Context, _ node.Spec) error {
 			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: LeadFn function not specified.", infra.Failed)
 			return nil
 		},
-		FollowFn: func(ctx context.Context, n nominee.NodeSpec) error {
+		FollowFn: func(_ context.Context, _ node.Spec) error {
 			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: FollowFn function not specified.", infra.Failed)
 			return nil
 		},
-		StonithFn: func(ctx context.Context) error {
+		StonithFn: func(_ context.Context) error {
 			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: StonithFn function not specified.", infra.Failed)
 			return nil
 		},
-		StopChanFn: func() nominee.StopChan {
+		StopChanFn: func() node.StopChan {
 			return stopChan
 		},
 	}
 }
 
 // DaemonName ...
-func (mock *Node) DaemonName() string {
+func (mock *Node) GetDaemonName() string {
 	return mock.DaemonNameFn()
 }
 
 // Lead ...
-func (mock *Node) Lead(ctx context.Context, leader nominee.NodeSpec) error {
+func (mock *Node) Lead(ctx context.Context, leader node.Spec) error {
 	mock.LeadHits++
 	mock.Leader = leader
 	return mock.LeadFn(ctx, leader)
 }
 
 // Follow ...
-func (mock *Node) Follow(ctx context.Context, leader nominee.NodeSpec) error {
+func (mock *Node) Follow(ctx context.Context, leader node.Spec) error {
 	mock.FollowHits++
 	mock.Leader = leader
 	return mock.FollowFn(ctx, leader)
@@ -84,6 +82,6 @@ func (mock *Node) Stonith(ctx context.Context) error {
 }
 
 // StopChan ...
-func (mock *Node) Stop() nominee.StopChan {
+func (mock *Node) Stop() node.StopChan {
 	return mock.StopChanFn()
 }

@@ -4,9 +4,16 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github/mlyahmed.io/nominee/impl/etcd"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"testing"
 	"time"
 )
+
+//
+type ConfigSpec struct {
+	t *testing.T
+	*etcd.ConfigSpec
+}
 
 // ServerRecord ...
 type ServerRecord struct {
@@ -24,10 +31,10 @@ type Connector struct {
 	StopChan         chan struct{}
 	Client           *Client
 	Election         *Election
-	ConnectFn        func(context.Context, *etcd.Config) (etcd.Client, error)
+	ConnectFn        func(context.Context, *etcd.ConfigSpec) (etcd.Client, error)
 	NewElectionFn    func(context.Context, string) (etcd.Election, error)
 	ResumeElectionFn func(context.Context, string, clientv3.GetResponse) (etcd.Election, error)
-	StopFn           func() <-chan struct{}
+	StopFn           func() node.StopChan
 	CleanupFn        func()
 }
 
@@ -53,11 +60,18 @@ type Election struct {
 	ObserveFn  func(ctx context.Context) <-chan clientv3.GetResponse
 }
 
+func NewConfigSpec(t *testing.T, spec *etcd.ConfigSpec) *ConfigSpec {
+	return &ConfigSpec{
+		t:          t,
+		ConfigSpec: spec,
+	}
+}
+
 // NewConnector ...
 func NewConnector(_ *testing.T) *Connector {
 	mock := &Connector{ServerRecord: &ServerRecord{}}
 
-	mock.ConnectFn = func(ctx context.Context, config *etcd.Config) (etcd.Client, error) {
+	mock.ConnectFn = func(ctx context.Context, config *etcd.ConfigSpec) (etcd.Client, error) {
 		return mock.Client, nil
 	}
 
@@ -69,7 +83,7 @@ func NewConnector(_ *testing.T) *Connector {
 		return mock.Election, nil
 	}
 
-	mock.StopFn = func() <-chan struct{} {
+	mock.StopFn = func() node.StopChan {
 		return mock.StopChan
 	}
 
@@ -107,8 +121,13 @@ func NewMockElection() *Election {
 	}
 }
 
+// ConfigSpec mock the etcd.ConfigSpec.Load function
+func (conf *ConfigSpec) Load(_ context.Context) {
+	conf.Loaded = true
+}
+
 // Connect ...
-func (mock *Connector) Connect(ctx context.Context, config *etcd.Config) (etcd.Client, error) {
+func (mock *Connector) Connect(ctx context.Context, config *etcd.ConfigSpec) (etcd.Client, error) {
 	mock.StopChan = make(chan struct{}, 1)
 	mock.Client = NewMockClient()
 	mock.ConnectHits++
@@ -133,7 +152,7 @@ func (mock *Connector) ResumeElection(ctx context.Context, electionKey string, l
 }
 
 // StopChan ...
-func (mock *Connector) Stop() <-chan struct{} {
+func (mock *Connector) Stop() node.StopChan {
 	mock.StopHits++
 	return mock.StopFn()
 }

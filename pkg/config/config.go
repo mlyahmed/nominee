@@ -11,7 +11,7 @@ import (
 
 // Loader ...
 type Loader interface {
-	LoadConfig(ctx context.Context)
+	Load(ctx context.Context)
 }
 
 // BasicConfig ...
@@ -47,7 +47,7 @@ func NewBasicConfig() *BasicConfig {
 }
 
 // LoadConfig ...
-func (conf *BasicConfig) LoadConfig(context.Context) {
+func (conf *BasicConfig) Load(context.Context) {
 	if conf.loaded {
 		return
 	}

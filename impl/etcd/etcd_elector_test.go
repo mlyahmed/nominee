@@ -11,7 +11,7 @@ import (
 	"github/mlyahmed.io/nominee/impl/etcd"
 	"github/mlyahmed.io/nominee/infra"
 	"github/mlyahmed.io/nominee/mock"
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -21,11 +21,12 @@ func init() {
 	logrus.SetOutput(ioutil.Discard)
 }
 
-func TestEtcdRacer_when_run_then_CONNECT_and_start_new_election(t *testing.T) {
+func TestEtcdRacer_when_run_then_connect_and_start_new_election(t *testing.T) {
 	t.Logf("Given EtcdRacer is stopped.")
 	{
 		for i, example := range examples {
 			t.Run("", func(t *testing.T) {
+
 				racer := etcd.NewElector(example.config)
 				defer racer.Cleanup()
 				connector := mock.NewConnector(t)
@@ -33,7 +34,7 @@ func TestEtcdRacer_when_run_then_CONNECT_and_start_new_election(t *testing.T) {
 
 				t.Logf("\tTest %d: When Run and %s", i, example.description)
 				{
-					if err := racer.Run(mock.NewNode(t, &nominee.NodeSpec{})); err != nil {
+					if err := racer.Run(mock.NewNode(t, &node.Spec{})); err != nil {
 						t.Fatalf("\t\t%s FATAL: EtcdRacer, %v", infra.Failed, err)
 					}
 
@@ -65,7 +66,7 @@ func TestEtcdRacer_when_start_new_election_then_the_key_must_be_conform(t *testi
 
 				t.Logf("\tTest %d: When Run and %s", i, example.description)
 				{
-					if err := racer.Run(mock.NewNode(t, &nominee.NodeSpec{})); err != nil {
+					if err := racer.Run(mock.NewNode(t, &node.Spec{})); err != nil {
 						t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", infra.Failed, err)
 					}
 
@@ -99,14 +100,14 @@ func TestEtcdRacer_must_campaign_for_leadership(t *testing.T) {
 				// Since in the contract, Etcd Campaign is a blocking function, it is invoked in a GOROUTINE. So we freeze a bit to let it be launched.
 				time.Sleep(100 * time.Millisecond)
 				if connector.Election.CampaignHits != 1 {
-					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to conquer for leadership. But actually not.", infra.Failed)
+					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to campaign for leadership. But actually not.", infra.Failed)
 				}
 				t.Logf("\t\t%s It is conquering for leadership.", infra.Succeed)
 
 				expected := example.nominee.Marshal()
 				actual := connector.Election.CampaignValue
 				if expected != actual {
-					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected conquer with value <%s> but actual is <%s>", infra.Failed, expected, actual)
+					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected campaign with value <%s> but actual is <%s>", infra.Failed, expected, actual)
 				}
 				t.Logf("\t\t%s It is conquering with marshaled nominee as value.", infra.Succeed)
 			}
@@ -120,7 +121,7 @@ func TestEtcdRacer_when_elected_then_promote_the_service(t *testing.T) {
 	{
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
-			srv.LeadFn = func(context.Context, nominee.NodeSpec) error { return nil }
+			srv.LeadFn = func(context.Context, node.Spec) error { return nil }
 
 			racer := etcd.NewElector(example.config)
 			connector := mock.NewConnector(t)
@@ -164,7 +165,7 @@ func TestEtcdRacer_when_err_on_promote_then_stonith(t *testing.T) {
 				t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", infra.Failed, err)
 			}
 
-			mockService.LeadFn = func(context.Context, nominee.NodeSpec) error {
+			mockService.LeadFn = func(context.Context, node.Spec) error {
 				return errors.New("")
 			}
 
@@ -173,7 +174,7 @@ func TestEtcdRacer_when_err_on_promote_then_stonith(t *testing.T) {
 				mockServerConnector.Election.PushLeader(example.toEtcdResponse())
 
 				select {
-				case <-etcdRacer.Stop():
+				case <-etcdRacer.Done():
 					t.Logf("\t\t%s It must stonith.", infra.Succeed)
 				default:
 					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to stonith. But actually not.", infra.Failed)
@@ -189,8 +190,8 @@ func TestEtcdRacer_when_another_nominee_is_promoted_then_follow_it(t *testing.T)
 	t.Logf("Given Etcd Elector is started.")
 	{
 		for i, example := range examples {
-			srv := mock.NewNode(t, &nominee.NodeSpec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()})
-			srv.FollowFn = func(context.Context, nominee.NodeSpec) error { return nil }
+			srv := mock.NewNode(t, &node.Spec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()})
+			srv.FollowFn = func(context.Context, node.Spec) error { return nil }
 
 			racer := etcd.NewElector(example.config)
 			connector := mock.NewConnector(t)
@@ -225,7 +226,7 @@ func TestEtcdRacer_when_error_on_follow_then_stonith(t *testing.T) {
 	t.Logf("Given the Node is bugged.")
 	{
 		for i, example := range examples {
-			srv := mock.NewNode(t, &nominee.NodeSpec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()})
+			srv := mock.NewNode(t, &node.Spec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()})
 			racer := etcd.NewElector(example.config)
 			connector := mock.NewConnector(t)
 			racer.Connector = connector
@@ -234,7 +235,7 @@ func TestEtcdRacer_when_error_on_follow_then_stonith(t *testing.T) {
 				t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", infra.Failed, err)
 			}
 
-			srv.FollowFn = func(context.Context, nominee.NodeSpec) error {
+			srv.FollowFn = func(context.Context, node.Spec) error {
 				return errors.Errorf("")
 			}
 
@@ -243,7 +244,7 @@ func TestEtcdRacer_when_error_on_follow_then_stonith(t *testing.T) {
 				connector.Election.PushLeader(example.toEtcdResponse())
 
 				select {
-				case <-racer.Stop():
+				case <-racer.Done():
 					t.Logf("\t\t%s It must stonith.", infra.Succeed)
 				default:
 					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to stonith. But actually not.", infra.Failed)
@@ -264,7 +265,7 @@ func TestEtcdRacer_when_another_leader_replaces_it_then_stonith(t *testing.T) {
 			connector := mock.NewConnector(t)
 			racer.Connector = connector
 
-			srv.LeadFn = func(ctx context.Context, nominee nominee.NodeSpec) error { return nil }
+			srv.LeadFn = func(ctx context.Context, nominee node.Spec) error { return nil }
 			srv.StonithFn = func(ctx context.Context) error { return nil }
 
 			if err := racer.Run(srv); err != nil {
@@ -275,7 +276,7 @@ func TestEtcdRacer_when_another_leader_replaces_it_then_stonith(t *testing.T) {
 
 			t.Logf("\tTest %d: When another leader is elected and %s", i, example.description)
 			{
-				n := &nominee.NodeSpec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()}
+				n := &node.Spec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()}
 				connector.Election.PushLeader(clientv3.GetResponse{
 					Kvs: []*mvccpb.KeyValue{
 						{
@@ -291,7 +292,7 @@ func TestEtcdRacer_when_another_leader_replaces_it_then_stonith(t *testing.T) {
 				t.Logf("\t\t%s The node must be stonith.", infra.Succeed)
 
 				select {
-				case <-racer.Stop():
+				case <-racer.Done():
 					t.Logf("\t\t%s It must stonith.", infra.Succeed)
 				default:
 					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to stonith. But actually not.", infra.Failed)
@@ -341,7 +342,7 @@ func TestEtcdRacer_when_there_was_already_a_leader_and_reconnect_then_resume_the
 	{
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
-			srv.LeadFn = func(context.Context, nominee.NodeSpec) error { return nil }
+			srv.LeadFn = func(context.Context, node.Spec) error { return nil }
 			racer := etcd.NewElector(example.config)
 			connector := mock.NewConnector(t)
 			racer.Connector = connector
@@ -397,7 +398,7 @@ func TestEtcdRacer_when_service_is_stopped_then_stonith(t *testing.T) {
 
 				time.Sleep(100 * time.Millisecond)
 				select {
-				case <-racer.Stop():
+				case <-racer.Done():
 					t.Logf("\t\t%s It must stonith.", infra.Succeed)
 				default:
 					t.Fatalf("\t\t%s FAIL: EtcdRacer, expected to stonith. But actually not.", infra.Failed)

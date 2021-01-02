@@ -4,7 +4,6 @@ import (
 	"context"
 	"github/mlyahmed.io/nominee/impl/haproxy"
 	"github/mlyahmed.io/nominee/infra"
-	"github/mlyahmed.io/nominee/pkg/config"
 	"os"
 	"testing"
 )
@@ -20,54 +19,55 @@ func TestHAProxyConfig_loads_configurations(t *testing.T) {
 
 				t.Logf("\tTest %d: When load configuration and %s.", i, example.description)
 				{
-					haproxyConfig := haproxy.NewHAProxyConfig(config.NewBasicConfig())
-					haproxyConfig.LoadConfig(context.TODO())
+					loader := haproxy.NewConfigLoader()
+					loader.Load(context.TODO())
+					config := loader.GetSpec()
 
-					if haproxyConfig.Cluster != example.cluster {
-						t.Fatalf("\t\t%s FAIL: HAProxyConfig.Cluster, expected <%s> but actual is <%s>", infra.Failed, example.cluster, haproxyConfig.Cluster)
+					if config.Cluster != example.cluster {
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Cluster, expected <%s> but actual is <%s>", infra.Failed, example.cluster, config.Cluster)
 					}
-					t.Logf("\t\t%s Then the HAProxyConfig.Cluster should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Cluster should be loaded.", infra.Succeed)
 
-					if haproxyConfig.Domain != example.domain {
-						t.Fatalf("\t\t%s FAIL: HAProxyConfig.Domain, expected <%s> but actual is <%s>", infra.Failed, example.domain, haproxyConfig.Domain)
+					if config.Domain != example.domain {
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Domain, expected <%s> but actual is <%s>", infra.Failed, example.domain, config.Domain)
 					}
-					t.Logf("\t\t%s Then the HAProxyConfig.Domain should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Domain should be loaded.", infra.Succeed)
 
 					if example.configFile == "" {
 						const defaultConfFile = "/usr/local/etc/haproxy/haproxy.cfg"
-						if haproxyConfig.ConfigFile != defaultConfFile {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.ConfigFile, expected the default <%s> but actual is <%s>", infra.Failed, defaultConfFile, haproxyConfig.ConfigFile)
+						if config.ConfigFile != defaultConfFile {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.ConfigFile, expected the default <%s> but actual is <%s>", infra.Failed, defaultConfFile, config.ConfigFile)
 						}
 					} else {
-						if haproxyConfig.ConfigFile != example.configFile {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.ConfigFile, expected <%s> but actual is <%s>", infra.Failed, example.configFile, haproxyConfig.ConfigFile)
+						if config.ConfigFile != example.configFile {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.ConfigFile, expected <%s> but actual is <%s>", infra.Failed, example.configFile, config.ConfigFile)
 						}
 					}
-					t.Logf("\t\t%s Then the HAProxyConfig.ConfigFile should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.ConfigFile should be loaded.", infra.Succeed)
 
 					if example.execFile == "" {
 						const defaultExecFile = "/usr/local/sbin/haproxy"
-						if haproxyConfig.ExecFile != defaultExecFile {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.ExecFile, expected the default <%s> but actual is <%s>", infra.Failed, defaultExecFile, haproxyConfig.ExecFile)
+						if config.ExecFile != defaultExecFile {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.ExecFile, expected the default <%s> but actual is <%s>", infra.Failed, defaultExecFile, config.ExecFile)
 						}
 					} else {
-						if haproxyConfig.ExecFile != example.execFile {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.ExecFile, expected <%s> but actual is <%s>", infra.Failed, example.execFile, haproxyConfig.ExecFile)
+						if config.ExecFile != example.execFile {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.ExecFile, expected <%s> but actual is <%s>", infra.Failed, example.execFile, config.ExecFile)
 						}
 					}
-					t.Logf("\t\t%s Then the HAProxyConfig.ExecFile should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.ExecFile should be loaded.", infra.Succeed)
 
 					if example.txDir == "" {
 						const defaultTxDir = "/tmp/haproxy"
-						if haproxyConfig.TxDir != defaultTxDir {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.TxDir, expected the default <%s> but actual is <%s>", infra.Failed, defaultTxDir, haproxyConfig.TxDir)
+						if config.TxDir != defaultTxDir {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.TxDir, expected the default <%s> but actual is <%s>", infra.Failed, defaultTxDir, config.TxDir)
 						}
 					} else {
-						if haproxyConfig.ExecFile != example.execFile {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.TxDir, expected <%s> but actual is <%s>", infra.Failed, example.txDir, haproxyConfig.TxDir)
+						if config.ExecFile != example.execFile {
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.TxDir, expected <%s> but actual is <%s>", infra.Failed, example.txDir, config.TxDir)
 						}
 					}
-					t.Logf("\t\t%s Then the HAProxyConfig.TxDir should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.TxDir should be loaded.", infra.Succeed)
 				}
 			})
 		}
@@ -86,14 +86,14 @@ func TestHAProxyConfig_panics_when_bad_configuration(t *testing.T) {
 				{
 					defer func() {
 						if r := recover(); r == nil {
-							t.Fatalf("\t\t%s FAIL: HAProxyConfig.LoadConfig(). Expected the program to panic. Actual not.", infra.Failed)
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.Load(). Expected the program to panic. Actual not.", infra.Failed)
 						} else {
 							t.Logf("\t\t%s Then the program must panic.", infra.Succeed)
 						}
 					}()
 
-					haproxyConfig := haproxy.NewHAProxyConfig(config.NewBasicConfig())
-					haproxyConfig.LoadConfig(context.TODO())
+					haproxyConfig := haproxy.NewConfigLoader()
+					haproxyConfig.Load(context.TODO())
 				}
 
 			})

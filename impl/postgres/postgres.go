@@ -5,7 +5,7 @@ import (
 	"fmt"
 	gopg "github.com/go-pg/pg/v10"
 	"github.com/sirupsen/logrus"
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -19,12 +19,13 @@ type status int
 type role int
 
 const (
-	started  status = iota
-	stopped  status = iota
-	primary  role   = iota
-	standby  role   = iota
-	recovery role   = iota
-	virgin   role   = iota
+	started status = iota
+	stopped
+
+	primary role = iota
+	standby
+	recovery
+	virgin
 )
 
 const (
@@ -53,7 +54,7 @@ type DBUser struct {
 
 // Postgres ...
 type Postgres struct {
-	*nominee.NodeBase
+	*node.Spec
 	cluster     string
 	domain      string
 	stopCh      chan struct{}
@@ -64,17 +65,16 @@ type Postgres struct {
 	status      status
 	role        role
 	db          *gopg.DB
-	leader      nominee.NodeSpec
+	leader      node.Spec
 }
 
 // NewPostgres ...
-func NewPostgres(config *PGConfig) *Postgres {
+func NewPostgres(cl ConfigLoader) *Postgres {
+	cl.Load(context.Background())
+	config := cl.GetSpec()
 	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
-		NodeBase: &nominee.NodeBase{
-			NodeSpec: &config.Nominee,
-		},
-
+		Spec:    &cl.GetSpec().NodeSpec,
 		stopCh:  make(chan struct{}),
 		cluster: config.Cluster,
 		domain:  config.Domain,
@@ -99,17 +99,17 @@ func NewPostgres(config *PGConfig) *Postgres {
 
 	_ = pg.createPgPassFile()
 
-	log = logrus.WithFields(logrus.Fields{"daemon": pg.DaemonName(), "node": pg.GetName()})
+	log = logrus.WithFields(logrus.Fields{"daemon": pg.GetDaemonName(), "node": pg.GetName()})
 	return pg
 }
 
 // ServiceName ...
-func (pg *Postgres) DaemonName() string {
+func (pg *Postgres) GetDaemonName() string {
 	return "postgres"
 }
 
 // Lead ...
-func (pg *Postgres) Lead(context context.Context, myself nominee.NodeSpec) error {
+func (pg *Postgres) Lead(context context.Context, myself node.Spec) error {
 	log.Infof("postgres: promote to primary as %v ...\n", myself.Name)
 	pg.leader = myself
 	defer pg.db.Close()
@@ -145,7 +145,7 @@ func (pg *Postgres) Lead(context context.Context, myself nominee.NodeSpec) error
 }
 
 // Follow ...
-func (pg *Postgres) Follow(ctx context.Context, leader nominee.NodeSpec) error {
+func (pg *Postgres) Follow(ctx context.Context, leader node.Spec) error {
 	log.Infof("postgres: following the new leader: %v \n", leader.Name)
 	pg.leader = leader
 
@@ -189,7 +189,7 @@ func (pg *Postgres) Stonith(context context.Context) error {
 }
 
 // Stop ...
-func (pg *Postgres) Stop() nominee.StopChan {
+func (pg *Postgres) Stop() node.StopChan {
 	return pg.stopCh
 }
 
@@ -250,7 +250,7 @@ func (pg *Postgres) authorizeReplication(context context.Context) error {
 	return pg.execOSCmd(context, fmt.Sprintf("echo '%s' >> %s", line, path), 0)
 }
 
-func (pg *Postgres) baseBackup(context context.Context, leader nominee.NodeSpec) error {
+func (pg *Postgres) baseBackup(context context.Context, leader node.Spec) error {
 	cmd := fmt.Sprintf("pg_basebackup -h %s -U %s -p 5432 -D %s -Fp -Xs -P -R", leader.Address, pg.replicaUser.Username, pg.pgdata)
 	return pg.execOSCmd(context, cmd, defaultRetries)
 }

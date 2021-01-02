@@ -2,26 +2,21 @@ package stonither
 
 import (
 	"context"
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"os"
 	"os/signal"
 )
 
 type Status int
 
-const (
-	Started Status = iota
-	Stopped
-)
-
 type Stonither interface {
 	Stonith()
 	Reset()
-	Stop() nominee.StopChan
+	Done() node.StopChan
 }
 
 type Base struct {
-	Context   context.Context
+	Ctx       context.Context
 	CancelFn  func()
 	StopChan  chan struct{}
 	ErrorChan chan error
@@ -31,14 +26,13 @@ type Base struct {
 func NewBase() *Base {
 	ctx, cancel := context.WithCancel(context.Background())
 	base := &Base{
-		Context:   ctx,
+		Ctx:       ctx,
 		CancelFn:  cancel,
 		StopChan:  make(chan struct{}),
 		ErrorChan: make(chan error),
 	}
 	base.setUpSignals()
 	base.setUpChannels()
-	base.Status = Started
 	return base
 }
 
@@ -73,14 +67,13 @@ func (base *Base) Stonith() {
 	default:
 		close(base.StopChan)
 	}
-	base.Status = Stopped
 }
 
 func (base *Base) Reset() {
 	base.CancelFn()
-	base.Context, base.CancelFn = context.WithCancel(context.Background())
+	base.Ctx, base.CancelFn = context.WithCancel(context.Background())
 }
 
-func (base *Base) Stop() nominee.StopChan {
+func (base *Base) Done() node.StopChan {
 	return base.StopChan
 }

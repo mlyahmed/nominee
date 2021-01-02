@@ -1,7 +1,8 @@
 package election
 
 import (
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/proxy"
 	"github/mlyahmed.io/nominee/pkg/stonither"
 )
 
@@ -14,12 +15,12 @@ type Cleaner interface {
 type Elector interface {
 	stonither.Stonither
 	Cleaner
-	Run(nominee.Node) error
+	Run(node.Node) error
 }
 
 // Observer ...
 type Observer interface {
 	stonither.Stonither
 	Cleaner
-	Observe(proxy nominee.Proxy) error
+	Observe(proxy proxy.Proxy) error
 }

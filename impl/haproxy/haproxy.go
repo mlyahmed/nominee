@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/haproxytech/client-native/v2/configuration"
 	"github.com/haproxytech/models/v2"
-	"github/mlyahmed.io/nominee/pkg/nominee"
+	"github/mlyahmed.io/nominee/pkg/node"
 	"os"
 	"os/exec"
 	"sync"
@@ -16,8 +16,8 @@ type HAProxy struct {
 	*configuration.Client
 	currentTx *models.Transaction
 	version   int64
-	primary   nominee.NodeSpec
-	standbies []nominee.NodeSpec
+	primary   node.Spec
+	standbies []node.Spec
 	mutex     *sync.Mutex
 	ctx       context.Context
 	cancel    func()
@@ -29,7 +29,9 @@ const (
 )
 
 // NewHAProxy ...
-func NewHAProxy(config *HAProxyConfig) *HAProxy {
+func NewHAProxy(cl ConfigLoader) *HAProxy {
+	cl.Load(context.Background())
+	config := cl.GetSpec()
 	proxy := HAProxy{Client: &configuration.Client{}, mutex: &sync.Mutex{}}
 	proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
 
@@ -77,7 +79,7 @@ func (proxy *HAProxy) start(reload bool) {
 }
 
 // PushNominees ...
-func (proxy *HAProxy) PushNodes(nominees ...nominee.NodeSpec) error {
+func (proxy *HAProxy) PushNodes(nominees ...node.Spec) error {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()
 	proxy.startTx()
@@ -93,7 +95,7 @@ func (proxy *HAProxy) PushNodes(nominees ...nominee.NodeSpec) error {
 }
 
 // PushLeader ...
-func (proxy *HAProxy) PushLeader(leader nominee.NodeSpec) error {
+func (proxy *HAProxy) PushLeader(leader node.Spec) error {
 	proxy.mutex.Lock()
 	defer proxy.mutex.Unlock()
 	proxy.primary = leader
@@ -153,7 +155,7 @@ func (proxy *HAProxy) removeStandbyServers() {
 	}
 }
 
-func (proxy *HAProxy) addServer(backend string, nominee nominee.NodeSpec) {
+func (proxy *HAProxy) addServer(backend string, nominee node.Spec) {
 	weight := int64(100)
 	if err := proxy.CreateServer(backend, &models.Server{
 		Name:    nominee.Name,

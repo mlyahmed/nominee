@@ -5,22 +5,28 @@ import (
 	"github/mlyahmed.io/nominee/pkg/config"
 )
 
-// HAProxyConfig ...
-type HAProxyConfig struct {
+// ConfigLoader ...
+type ConfigLoader interface {
+	config.Loader
+	GetSpec() *ConfigSpec
+}
+
+// ConfigSpec ...
+type ConfigSpec struct {
 	*config.BasicConfig
 	ConfigFile string
 	ExecFile   string
 	TxDir      string
 }
 
-// NewHAProxyConfig ...
-func NewHAProxyConfig(basic *config.BasicConfig) *HAProxyConfig {
-	return &HAProxyConfig{BasicConfig: basic}
+// NewConfigLoader ...
+func NewConfigLoader() ConfigLoader {
+	return &ConfigSpec{BasicConfig: config.NewBasicConfig()}
 }
 
 // LoadConfig ...
-func (conf *HAProxyConfig) LoadConfig(ctx context.Context) {
-	conf.BasicConfig.LoadConfig(ctx)
+func (conf *ConfigSpec) Load(ctx context.Context) {
+	conf.BasicConfig.Load(ctx)
 
 	config.SetDefault("NOMINEE_HAPROXY_CONFIG_FILE", "/usr/local/etc/haproxy/haproxy.cfg")
 	config.SetDefault("NOMINEE_HAPROXY_EXEC_FILE", "/usr/local/sbin/haproxy")
@@ -29,4 +35,8 @@ func (conf *HAProxyConfig) LoadConfig(ctx context.Context) {
 	conf.ConfigFile = config.GetString("NOMINEE_HAPROXY_CONFIG_FILE")
 	conf.ExecFile = config.GetString("NOMINEE_HAPROXY_EXEC_FILE")
 	conf.TxDir = config.GetString("NOMINEE_HAPROXY_TX_DIR")
+}
+
+func (conf *ConfigSpec) GetSpec() *ConfigSpec {
+	return conf
 }

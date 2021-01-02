@@ -4,6 +4,8 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
+	"github/mlyahmed.io/nominee/pkg/election"
+	"github/mlyahmed.io/nominee/pkg/node"
 )
 
 // Client ...
@@ -17,17 +19,20 @@ type Client interface {
 
 // Election ...
 type Election interface {
+	// extracted from concurrency.Campaign
 	Campaign(ctx context.Context, val string) error
+
+	// extracted from concurrency.Observe
 	Observe(ctx context.Context) <-chan clientv3.GetResponse
 }
 
 // Connector ...
 type Connector interface {
-	Connect(ctx context.Context, config *Config) (Client, error)
+	election.Cleaner
+	Connect(ctx context.Context, config *ConfigSpec) (Client, error)
 	NewElection(ctx context.Context, electionKey string) (Election, error)
 	ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error)
-	Stop() <-chan struct{}
-	Cleanup()
+	Stop() node.StopChan
 }
 
 // DefaultConnector ...
@@ -42,16 +47,15 @@ func NewDefaultConnector() *DefaultConnector {
 }
 
 // Connect ...
-func (server *DefaultConnector) Connect(ctx context.Context, config *Config) (Client, error) {
+func (server *DefaultConnector) Connect(ctx context.Context, config *ConfigSpec) (Client, error) {
 	var err error
-	logger.Infof("create new session. Endpoints %s", config.Endpoints)
+	log.Infof("create new session. Endpoints %s", config.Endpoints)
 
-	cfg := clientv3.Config{
-		Context:   ctx,
-		Endpoints: config.Endpoints,
-	}
-	if server.client, err = clientv3.New(cfg); err != nil {
-		return nil, err
+	if server.client == nil {
+		cfg := clientv3.Config{Context: ctx, Endpoints: config.Endpoints}
+		if server.client, err = clientv3.New(cfg); err != nil {
+			return nil, err
+		}
 	}
 
 	if server.session, err = concurrency.NewSession(server.client, concurrency.WithTTL(1), concurrency.WithContext(ctx)); err != nil {
@@ -68,13 +72,13 @@ func (server *DefaultConnector) NewElection(_ context.Context, electionKey strin
 }
 
 // ResumeElection ...
-func (server *DefaultConnector) ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error) {
+func (server *DefaultConnector) ResumeElection(_ context.Context, electionKey string, leader clientv3.GetResponse) (Election, error) {
 	election := concurrency.ResumeElection(server.session, electionKey, string(leader.Kvs[0].Key), leader.Kvs[0].CreateRevision)
 	return election, nil
 }
 
 // StopChan ...
-func (server *DefaultConnector) Stop() <-chan struct{} {
+func (server *DefaultConnector) Stop() node.StopChan {
 	return server.session.Done()
 }
 
