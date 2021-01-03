@@ -26,7 +26,7 @@ type Observer struct {
 	*Mock
 	*stonither.Base
 	*Cleaner
-	RunFn func(p proxy.Proxy) error
+	ObserveFn func(p proxy.Proxy) error
 }
 
 func NewElector(t *testing.T) *Elector {
@@ -42,6 +42,19 @@ func NewElector(t *testing.T) *Elector {
 	}
 }
 
+func NewObserver(t *testing.T) *Observer {
+	return &Observer{
+		Mock: &Mock{t: t},
+		Base: stonither.NewBase(),
+		Cleaner: &Cleaner{
+			CleanupFn: func() {},
+		},
+		ObserveFn: func(p proxy.Proxy) error {
+			return nil
+		},
+	}
+}
+
 func (c *Cleaner) Cleanup() {
 	c.CleanupFn()
 }
@@ -50,6 +63,6 @@ func (e *Elector) Run(n node.Node) error {
 	return e.RunFn(n)
 }
 
-func (o *Observer) Run(p proxy.Proxy) error {
-	return o.RunFn(p)
+func (o *Observer) Observe(p proxy.Proxy) error {
+	return o.ObserveFn(p)
 }
