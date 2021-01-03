@@ -8,20 +8,46 @@ import (
 	"github/mlyahmed.io/nominee/pkg/proxy"
 )
 
-func RunElector(ctx context.Context, elector election.Elector, node node.Node) error {
+type ElectorRunner interface {
+	Run(context.Context, election.Elector, node.Node) error
+}
+
+type ObserverRunner interface {
+	Run(ctx context.Context, observer election.Observer, proxy proxy.Proxy) error
+}
+
+type defaultElectorRunner struct{}
+type defaultObserverRunner struct{}
+
+func NewElectorRunner() ElectorRunner {
+	return defaultElectorRunner{}
+}
+
+func NewObserverRunner() ObserverRunner {
+	return defaultObserverRunner{}
+}
+
+func (defaultElectorRunner) Run(ctx context.Context, elector election.Elector, node node.Node) error {
 	log := logger.G(ctx)
 	defer elector.Cleanup()
+
 	log.Infof("RunElector: starting...")
 	if err := elector.Run(node); err != nil {
 		log.Errorf("RunElector: %v", err)
 		return err
 	}
-	<-elector.Done()
-	log.Infof("RunElector: stopped.")
+
+	select {
+	case <-elector.Done():
+		log.Infof("RunElector: elector done.")
+	case <-ctx.Done():
+		log.Infof("RunElector: context done.")
+	}
+
 	return nil
 }
 
-func RunObserver(ctx context.Context, observer election.Observer, proxy proxy.Proxy) error {
+func (defaultObserverRunner) Run(ctx context.Context, observer election.Observer, proxy proxy.Proxy) error {
 	log := logger.G(ctx)
 	defer observer.Cleanup()
 	log.Infof("RunObserver: starting...")
@@ -29,7 +55,13 @@ func RunObserver(ctx context.Context, observer election.Observer, proxy proxy.Pr
 		log.Errorf("RunObserver: %v", err)
 		return err
 	}
-	<-observer.Done()
-	log.Infof("RunObserver: stopped.")
+
+	select {
+	case <-observer.Done():
+		log.Infof("RunObserver: elector done.")
+	case <-ctx.Done():
+		log.Infof("RunObserver: context done.")
+	}
+
 	return nil
 }

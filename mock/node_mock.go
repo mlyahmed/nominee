@@ -2,8 +2,8 @@ package mock
 
 import (
 	"context"
-	"github/mlyahmed.io/nominee/infra"
 	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/testutils"
 	"testing"
 )
 
@@ -39,15 +39,15 @@ func NewNode(t *testing.T, spec *node.Spec) *Node {
 			return "mockedService"
 		},
 		LeadFn: func(_ context.Context, _ node.Spec) error {
-			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: LeadFn function not specified.", infra.Failed)
+			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: LeadFn function not specified.", testutils.Failed)
 			return nil
 		},
 		FollowFn: func(_ context.Context, _ node.Spec) error {
-			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: FollowFn function not specified.", infra.Failed)
+			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: FollowFn function not specified.", testutils.Failed)
 			return nil
 		},
 		StonithFn: func(_ context.Context) error {
-			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: StonithFn function not specified.", infra.Failed)
+			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: StonithFn function not specified.", testutils.Failed)
 			return nil
 		},
 		StopChanFn: func() node.StopChan {

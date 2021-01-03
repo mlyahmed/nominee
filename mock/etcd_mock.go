@@ -60,13 +60,6 @@ type Election struct {
 	ObserveFn  func(ctx context.Context) <-chan clientv3.GetResponse
 }
 
-func NewConfigSpec(t *testing.T, spec *etcd.ConfigSpec) *ConfigSpec {
-	return &ConfigSpec{
-		t:          t,
-		ConfigSpec: spec,
-	}
-}
-
 // NewConnector ...
 func NewConnector(_ *testing.T) *Connector {
 	mock := &Connector{ServerRecord: &ServerRecord{}}
@@ -93,8 +86,8 @@ func NewConnector(_ *testing.T) *Connector {
 	return mock
 }
 
-// NewMockClient ...
-func NewMockClient() *Client {
+// NewClient ...
+func NewClient() *Client {
 	return &Client{
 		WatchFn: func(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
 			return nil
@@ -105,8 +98,8 @@ func NewMockClient() *Client {
 	}
 }
 
-// NewMockElection ...
-func NewMockElection() *Election {
+// NewElection ...
+func NewElection() *Election {
 	leaderChan := make(chan clientv3.GetResponse, 1)
 	return &Election{
 		LeaderChan:     leaderChan,
@@ -129,14 +122,14 @@ func (conf *ConfigSpec) Load(_ context.Context) {
 // Connect ...
 func (mock *Connector) Connect(ctx context.Context, config *etcd.ConfigSpec) (etcd.Client, error) {
 	mock.StopChan = make(chan struct{}, 1)
-	mock.Client = NewMockClient()
+	mock.Client = NewClient()
 	mock.ConnectHits++
 	return mock.ConnectFn(ctx, config)
 }
 
 // NewElection ...
 func (mock *Connector) NewElection(ctx context.Context, electionKey string) (etcd.Election, error) {
-	mock.Election = NewMockElection()
+	mock.Election = NewElection()
 	mock.Election.ElectionKey = electionKey
 	mock.NewElectionHits++
 	return mock.NewElectionFn(ctx, electionKey)
@@ -144,7 +137,7 @@ func (mock *Connector) NewElection(ctx context.Context, electionKey string) (etc
 
 // ResumeElection ...
 func (mock *Connector) ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (etcd.Election, error) {
-	mock.Election = NewMockElection()
+	mock.Election = NewElection()
 	mock.Election.ElectionKey = electionKey
 	mock.Election.Leader = leader
 	mock.ResumeElectionHits++

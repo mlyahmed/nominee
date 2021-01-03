@@ -11,7 +11,7 @@ export NOMINEE_NETWORK ?= nominee
 export GOARCH ?= $(shell go env GOARCH)
 export GOOS ?= $(shell go env GOOS)
 export NOMINEE_DOCKER_REPO := nominee
-export NOMINEE_ARTIFACTS := nominee-postgres nominee-haproxy
+export NOMINEE_ARTIFACTS := postgresw haproxyw
 export NOMINEE_BIN_DIR := bin
 export BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 export SIMPLE_VERSION := $(shell (test "$(shell git describe)" = "$(shell git describe --abbrev=0)" && echo $(shell git describe)) || echo $(shell git describe --abbrev=0)-$(shell git branch --show-current))
@@ -26,12 +26,12 @@ export GO_GCFLAGS = -gcflags=all=-trimpath=./...
 export GO_BUILD_ARGS = \
   $(GO_GCFLAGS) $(GO_ASMFLAGS) \
   -ldflags="-s -w \
-    -X '$(MODULE)/infra/version.Date=$(BUILD_DATE)' \
-    -X '$(MODULE)/infra/version.Platform=$(GOOS)/$(GOARCH)' \
-    -X '$(MODULE)/infra/version.SimpleVersion=$(SIMPLE_VERSION)' \
-    -X '$(MODULE)/infra/version.GitVersion=$(GIT_VERSION)' \
-    -X '$(MODULE)/infra/version.GitCommit=$(GIT_COMMIT)' \
-    -X '$(MODULE)/infra/version.ImageVersion=$(IMAGE_VERSION)'"
+    -X '$(MODULE)/version.Date=$(BUILD_DATE)' \
+    -X '$(MODULE)/version.Platform=$(GOOS)/$(GOARCH)' \
+    -X '$(MODULE)/version.SimpleVersion=$(SIMPLE_VERSION)' \
+    -X '$(MODULE)/version.GitVersion=$(GIT_VERSION)' \
+    -X '$(MODULE)/version.GitCommit=$(GIT_COMMIT)' \
+    -X '$(MODULE)/version.ImageVersion=$(IMAGE_VERSION)'"
 
 rm-all create-docker-network: export NOMINEE_NETWORK_EXISTS := $(shell docker network ls | grep $(NOMINEE_NETWORK))
 

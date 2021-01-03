@@ -69,7 +69,7 @@ type Postgres struct {
 }
 
 // NewPostgres ...
-func NewPostgres(cl ConfigLoader) *Postgres {
+func NewPostgres(cl ConfigLoader) node.Node {
 	cl.Load(context.Background())
 	config := cl.GetSpec()
 	osu, _ := user.Lookup(postgres)

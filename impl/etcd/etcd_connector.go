@@ -67,14 +67,14 @@ func (server *DefaultConnector) Connect(ctx context.Context, config *ConfigSpec)
 
 // NewElection ...
 func (server *DefaultConnector) NewElection(_ context.Context, electionKey string) (Election, error) {
-	election := concurrency.NewElection(server.session, electionKey)
-	return election, nil
+	e := concurrency.NewElection(server.session, electionKey)
+	return e, nil
 }
 
 // ResumeElection ...
 func (server *DefaultConnector) ResumeElection(_ context.Context, electionKey string, leader clientv3.GetResponse) (Election, error) {
-	election := concurrency.ResumeElection(server.session, electionKey, string(leader.Kvs[0].Key), leader.Kvs[0].CreateRevision)
-	return election, nil
+	e := concurrency.ResumeElection(server.session, electionKey, string(leader.Kvs[0].Key), leader.Kvs[0].CreateRevision)
+	return e, nil
 }
 
 // StopChan ...

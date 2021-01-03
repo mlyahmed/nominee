@@ -3,7 +3,7 @@ package etcd_test
 import (
 	"context"
 	"github/mlyahmed.io/nominee/impl/etcd"
-	"github/mlyahmed.io/nominee/infra"
+	"github/mlyahmed.io/nominee/pkg/testutils"
 	"os"
 	"reflect"
 	"strings"
@@ -25,29 +25,29 @@ func TestEtcdConfig_loads_configurations(t *testing.T) {
 					loader.Load(context.TODO())
 					etcdConfig := loader.GetSpec()
 					if etcdConfig.Cluster != example.cluster {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Cluster, expected <%s> but actual is <%s>", infra.Failed, example.cluster, etcdConfig.Cluster)
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Cluster, expected <%s> but actual is <%s>", testutils.Failed, example.cluster, etcdConfig.Cluster)
 					}
-					t.Logf("\t\t%s Then the ConfigSpec.Cluster should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Cluster should be loaded.", testutils.Succeed)
 
 					if etcdConfig.Domain != example.domain {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Domain, expected <%s> but actual is <%s>", infra.Failed, example.domain, etcdConfig.Domain)
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Domain, expected <%s> but actual is <%s>", testutils.Failed, example.domain, etcdConfig.Domain)
 					}
-					t.Logf("\t\t%s Then the ConfigSpec.Domain should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Domain should be loaded.", testutils.Succeed)
 
 					if !reflect.DeepEqual(etcdConfig.Endpoints, strings.Split(example.endpoints, ",")) {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Endpoints, expected <%s> but actual is <%s>", infra.Failed, example.endpoints, etcdConfig.Endpoints)
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Endpoints, expected <%s> but actual is <%s>", testutils.Failed, example.endpoints, etcdConfig.Endpoints)
 					}
-					t.Logf("\t\t%s Then the ConfigSpec.Endpoints should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Endpoints should be loaded.", testutils.Succeed)
 
 					if etcdConfig.Username != example.username {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Username, expected <%s> but actual is <%s>", infra.Failed, example.username, etcdConfig.Username)
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Username, expected <%s> but actual is <%s>", testutils.Failed, example.username, etcdConfig.Username)
 					}
-					t.Logf("\t\t%s Then the ConfigSpec.Username should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Username should be loaded.", testutils.Succeed)
 
 					if etcdConfig.Password != example.password {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Password, expected <%s> but actual is <%s>", infra.Failed, example.password, etcdConfig.Password)
+						t.Fatalf("\t\t%s FAIL: ConfigSpec.Password, expected <%s> but actual is <%s>", testutils.Failed, example.password, etcdConfig.Password)
 					}
-					t.Logf("\t\t%s Then the ConfigSpec.Password should be loaded.", infra.Succeed)
+					t.Logf("\t\t%s Then the ConfigSpec.Password should be loaded.", testutils.Succeed)
 				}
 			})
 		}
@@ -66,9 +66,9 @@ func TestEtcdConfig_panics_when_bad_configuration(t *testing.T) {
 				{
 					defer func() {
 						if r := recover(); r == nil {
-							t.Fatalf("\t\t%s FAIL: ConfigSpec.Load(). Expected the program to panic. Actual not.", infra.Failed)
+							t.Fatalf("\t\t%s FAIL: ConfigSpec.Load(). Expected the program to panic. Actual not.", testutils.Failed)
 						} else {
-							t.Logf("\t\t%s Then the program must panic.", infra.Succeed)
+							t.Logf("\t\t%s Then the program must panic.", testutils.Succeed)
 						}
 					}()
 

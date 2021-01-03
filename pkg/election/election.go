@@ -13,14 +13,14 @@ type Cleaner interface {
 
 // Elector ...
 type Elector interface {
+	Run(node.Node) error
 	stonither.Stonither
 	Cleaner
-	Run(node.Node) error
 }
 
 // Observer ...
 type Observer interface {
+	Observe(proxy.Proxy) error
 	stonither.Stonither
 	Cleaner
-	Observe(proxy proxy.Proxy) error
 }

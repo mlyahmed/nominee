@@ -16,9 +16,9 @@ type Specifier interface {
 // Node ...
 type Node interface {
 	Specifier
-	Lead(context context.Context, leader Spec) error
-	Follow(context context.Context, leader Spec) error
-	Stonith(context context.Context) error
+	Lead(context.Context, Spec) error
+	Follow(context.Context, Spec) error
+	Stonith(context.Context) error
 	Stop() StopChan
 }
 
