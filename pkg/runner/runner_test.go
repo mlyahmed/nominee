@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github/mlyahmed.io/nominee/mock"
+	mock2 "github/mlyahmed.io/nominee/pkg/mock"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"github/mlyahmed.io/nominee/pkg/proxy"
 	"github/mlyahmed.io/nominee/pkg/runner"
@@ -26,8 +26,8 @@ func TestElectorRunner_when_run_then_keep_running(t *testing.T) {
 	{
 		running := false
 		r := runner.NewElectorRunner()
-		n := mock.NewNode(t, &node.Spec{})
-		e := mock.NewElector(t)
+		n := mock2.NewNode(t, &node.Spec{})
+		e := mock2.NewElector(t)
 
 		t.Logf("\tWhen it is run.")
 		{
@@ -56,8 +56,8 @@ func TestElectorRunner_when_ctx_done_then_stop(t *testing.T) {
 	{
 		stopped := false
 		r := runner.NewElectorRunner()
-		n := mock.NewNode(t, &node.Spec{})
-		e := mock.NewElector(t)
+		n := mock2.NewNode(t, &node.Spec{})
+		e := mock2.NewElector(t)
 
 		t.Logf("\tWhen the context is done.")
 		{
@@ -86,8 +86,8 @@ func TestElectorRunner_when_elector_stoniths_then_stop(t *testing.T) {
 	{
 		stopped := false
 		r := runner.NewElectorRunner()
-		n := mock.NewNode(t, &node.Spec{})
-		e := mock.NewElector(t)
+		n := mock2.NewNode(t, &node.Spec{})
+		e := mock2.NewElector(t)
 		t.Logf("\tWhen the elector stoniths.")
 		{
 			go func() {
@@ -113,8 +113,8 @@ func TestElectorRunner_when_elector_returns_an_error_then_stop(t *testing.T) {
 	{
 		stopped := false
 		r := runner.NewElectorRunner()
-		n := mock.NewNode(t, &node.Spec{})
-		e := mock.NewElector(t)
+		n := mock2.NewNode(t, &node.Spec{})
+		e := mock2.NewElector(t)
 
 		t.Logf("\tWhen the elector returns an error.")
 		{
@@ -146,8 +146,8 @@ func TestObserverRunner_when_run_then_keep_running(t *testing.T) {
 	{
 		running := false
 		r := runner.NewObserverRunner()
-		p := mock.NewProxy()
-		o := mock.NewObserver(t)
+		p := mock2.NewProxy()
+		o := mock2.NewObserver(t)
 
 		t.Logf("\tWhen it is run.")
 		{
@@ -176,8 +176,8 @@ func TestObserverRunner_when_ctx_done_then_stop(t *testing.T) {
 	{
 		stopped := false
 		r := runner.NewObserverRunner()
-		o := mock.NewObserver(t)
-		p := mock.NewProxy()
+		o := mock2.NewObserver(t)
+		p := mock2.NewProxy()
 
 		t.Logf("\tWhen the context is done.")
 		{
@@ -206,8 +206,8 @@ func TestObserverRunner_when_the_observer_stoniths_then_stop(t *testing.T) {
 	{
 		stopped := false
 		r := runner.NewObserverRunner()
-		o := mock.NewObserver(t)
-		p := mock.NewProxy()
+		o := mock2.NewObserver(t)
+		p := mock2.NewProxy()
 		t.Logf("\tWhen the observer stoniths.")
 		{
 			go func() {
@@ -233,8 +233,8 @@ func TestObserverRunner_when_the_observer_returns_an_error_then_stop(t *testing.
 	{
 		stopped := false
 		r := runner.NewObserverRunner()
-		o := mock.NewObserver(t)
-		p := mock.NewProxy()
+		o := mock2.NewObserver(t)
+		p := mock2.NewProxy()
 
 		t.Logf("\tWhen the observer returns an error.")
 		{

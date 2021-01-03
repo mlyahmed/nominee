@@ -9,7 +9,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/impl/etcd"
-	"github/mlyahmed.io/nominee/mock"
+	etcdmock "github/mlyahmed.io/nominee/impl/mock"
+	"github/mlyahmed.io/nominee/pkg/mock"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"github/mlyahmed.io/nominee/pkg/testutils"
 	"io/ioutil"
@@ -29,7 +30,7 @@ func TestEtcdRacer_when_run_then_connect_and_start_new_election(t *testing.T) {
 
 				racer := etcd.NewElector(example.config)
 				defer racer.Cleanup()
-				connector := mock.NewConnector(t)
+				connector := etcdmock.NewConnector(t)
 				racer.Connector = connector
 
 				t.Logf("\tTest %d: When Run and %s", i, example.description)
@@ -61,7 +62,7 @@ func TestEtcdRacer_when_start_new_election_then_the_key_must_be_conform(t *testi
 			t.Run("", func(t *testing.T) {
 				racer := etcd.NewElector(example.config)
 				defer racer.Cleanup()
-				connector := mock.NewConnector(t)
+				connector := etcdmock.NewConnector(t)
 				racer.Connector = connector
 
 				t.Logf("\tTest %d: When Run and %s", i, example.description)
@@ -88,7 +89,7 @@ func TestEtcdRacer_must_campaign_for_leadership(t *testing.T) {
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			t.Logf("\tTest %d: When Run and %s", i, example.description)
@@ -124,7 +125,7 @@ func TestEtcdRacer_when_elected_then_promote_the_service(t *testing.T) {
 			srv.LeadFn = func(context.Context, node.Spec) error { return nil }
 
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			if err := racer.Run(srv); err != nil {
@@ -158,7 +159,7 @@ func TestEtcdRacer_when_err_on_promote_then_stonith(t *testing.T) {
 		for i, example := range examples {
 			mockService := mock.NewNode(t, example.nominee)
 			etcdRacer := etcd.NewElector(example.config)
-			mockServerConnector := mock.NewConnector(t)
+			mockServerConnector := etcdmock.NewConnector(t)
 			etcdRacer.Connector = mockServerConnector
 
 			if err := etcdRacer.Run(mockService); err != nil {
@@ -194,7 +195,7 @@ func TestEtcdRacer_when_another_nominee_is_promoted_then_follow_it(t *testing.T)
 			srv.FollowFn = func(context.Context, node.Spec) error { return nil }
 
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			if err := racer.Run(srv); err != nil {
@@ -228,7 +229,7 @@ func TestEtcdRacer_when_error_on_follow_then_stonith(t *testing.T) {
 		for i, example := range examples {
 			srv := mock.NewNode(t, &node.Spec{Name: string(uuid.NodeID()), Address: uuid.NodeInterface()})
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			if err := racer.Run(srv); err != nil {
@@ -262,7 +263,7 @@ func TestEtcdRacer_when_another_leader_replaces_it_then_stonith(t *testing.T) {
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			srv.LeadFn = func(ctx context.Context, nominee node.Spec) error { return nil }
@@ -310,7 +311,7 @@ func TestEtcdRacer_when_the_server_session_is_closed_retry_to_connect(t *testing
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			if err := racer.Run(srv); err != nil {
@@ -344,7 +345,7 @@ func TestEtcdRacer_when_there_was_already_a_leader_and_reconnect_then_resume_the
 			srv := mock.NewNode(t, example.nominee)
 			srv.LeadFn = func(context.Context, node.Spec) error { return nil }
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 
 			if err := racer.Run(srv); err != nil {
@@ -386,7 +387,7 @@ func TestEtcdRacer_when_service_is_stopped_then_stonith(t *testing.T) {
 		for i, example := range examples {
 			srv := mock.NewNode(t, example.nominee)
 			racer := etcd.NewElector(example.config)
-			connector := mock.NewConnector(t)
+			connector := etcdmock.NewConnector(t)
 			racer.Connector = connector
 			if err := racer.Run(srv); err != nil {
 				t.Fatalf("\t\t%s FATAL: EtcdRacer.Run, %v", testutils.Failed, err)

@@ -5,7 +5,7 @@ import (
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"github.com/google/uuid"
 	"github/mlyahmed.io/nominee/impl/etcd"
-	"github/mlyahmed.io/nominee/mock"
+	"github/mlyahmed.io/nominee/impl/mock"
 	"github/mlyahmed.io/nominee/pkg/config"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"time"

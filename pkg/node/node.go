@@ -7,6 +7,7 @@ import (
 
 type Specifier interface {
 	GetDaemonName() string
+	GetElectionKey() string
 	GetName() string
 	GetAddress() string
 	GetPort() int64
@@ -44,6 +45,10 @@ func Unmarshal(data []byte) (Spec, error) {
 	value := Spec{}
 	err := json.Unmarshal(data, &value)
 	return value, err
+}
+
+func (n *Spec) GetElectionKey() string {
+	return n.ElectionKey
 }
 
 func (n *Spec) GetName() string {
