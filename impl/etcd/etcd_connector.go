@@ -77,7 +77,7 @@ func (server *DefaultConnector) ResumeElection(_ context.Context, electionKey st
 	return e, nil
 }
 
-// StopChan ...
+// Stop ...
 func (server *DefaultConnector) Stop() node.StopChan {
 	return server.session.Done()
 }

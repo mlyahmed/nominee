@@ -15,8 +15,8 @@ type ConfigSpec struct {
 	*etcd.ConfigSpec
 }
 
-// ServerRecord ...
-type ServerRecord struct {
+// ConnectorRecord ...
+type ConnectorRecord struct {
 	ConnectHits        int
 	NewElectionHits    int
 	ResumeElectionHits int
@@ -27,8 +27,8 @@ type ServerRecord struct {
 // Connector ...
 type Connector struct {
 	t *testing.T
-	*ServerRecord
-	StopChan         chan struct{}
+	*ConnectorRecord
+	stopChan         chan struct{}
 	Client           *Client
 	Election         *Election
 	ConnectFn        func(context.Context, *etcd.ConfigSpec) (etcd.Client, error)
@@ -55,14 +55,14 @@ type ElectionRecord struct {
 // Election ...
 type Election struct {
 	*ElectionRecord
-	LeaderChan chan clientv3.GetResponse
+	leaderChan chan clientv3.GetResponse
 	CampaignFn func(ctx context.Context, val string) error
 	ObserveFn  func(ctx context.Context) <-chan clientv3.GetResponse
 }
 
 // NewConnector ...
 func NewConnector(_ *testing.T) *Connector {
-	mock := &Connector{ServerRecord: &ServerRecord{}}
+	mock := &Connector{ConnectorRecord: &ConnectorRecord{}}
 
 	mock.ConnectFn = func(ctx context.Context, config *etcd.ConfigSpec) (etcd.Client, error) {
 		return mock.Client, nil
@@ -77,7 +77,7 @@ func NewConnector(_ *testing.T) *Connector {
 	}
 
 	mock.StopFn = func() node.StopChan {
-		return mock.StopChan
+		return mock.stopChan
 	}
 
 	mock.CleanupFn = func() {
@@ -102,7 +102,7 @@ func NewClient() *Client {
 func NewElection() *Election {
 	leaderChan := make(chan clientv3.GetResponse, 1)
 	return &Election{
-		LeaderChan:     leaderChan,
+		leaderChan:     leaderChan,
 		ElectionRecord: &ElectionRecord{},
 		CampaignFn: func(ctx context.Context, val string) error {
 			<-ctx.Done()
@@ -121,7 +121,7 @@ func (conf *ConfigSpec) Load(_ context.Context) {
 
 // Connect ...
 func (mock *Connector) Connect(ctx context.Context, config *etcd.ConfigSpec) (etcd.Client, error) {
-	mock.StopChan = make(chan struct{}, 1)
+	mock.stopChan = make(chan struct{}, 1)
 	mock.Client = NewClient()
 	mock.ConnectHits++
 	return mock.ConnectFn(ctx, config)
@@ -144,7 +144,7 @@ func (mock *Connector) ResumeElection(ctx context.Context, electionKey string, l
 	return mock.ResumeElectionFn(ctx, electionKey, leader)
 }
 
-// StopChan ...
+// Stop ...
 func (mock *Connector) Stop() node.StopChan {
 	mock.StopHits++
 	return mock.StopFn()
@@ -158,7 +158,7 @@ func (mock *Connector) Cleanup() {
 
 // CloseSession ...
 func (mock *Connector) CloseSession() {
-	close(mock.StopChan)
+	close(mock.stopChan)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -184,12 +184,12 @@ func (mock *Election) Observe(ctx context.Context) <-chan clientv3.GetResponse {
 	mock.ObserveHits++
 	go func() {
 		<-ctx.Done()
-		close(mock.LeaderChan)
+		close(mock.leaderChan)
 	}()
 	return mock.ObserveFn(ctx)
 }
 
 func (mock *Election) PushLeader(leader clientv3.GetResponse) {
-	mock.LeaderChan <- leader
+	mock.leaderChan <- leader
 	time.Sleep(10 * time.Millisecond)
 }

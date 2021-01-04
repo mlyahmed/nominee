@@ -14,7 +14,7 @@ import (
 type exampleSpec struct {
 	description string
 	config      *mock.ConfigSpec
-	nominee     *node.Spec
+	nodeSpec    *node.Spec
 }
 
 func (example exampleSpec) toEtcdResponse() clientv3.GetResponse {
@@ -22,7 +22,7 @@ func (example exampleSpec) toEtcdResponse() clientv3.GetResponse {
 		Kvs: []*mvccpb.KeyValue{
 			{
 				Key:            uuid.NodeID(),
-				Value:          []byte(example.nominee.Marshal()),
+				Value:          []byte(example.nodeSpec.Marshal()),
 				CreateRevision: time.Now().Unix(),
 			},
 		},
@@ -38,7 +38,7 @@ var examples = []exampleSpec{
 				BasicConfig: &config.BasicConfig{Cluster: "cluster-001", Domain: "domain-001"},
 			},
 		},
-		nominee: &node.Spec{Name: "nominee-1", Address: "nominee-1", Port: 1245},
+		nodeSpec: &node.Spec{Name: "nominee-1", Address: "nominee-1", Port: 1245},
 	},
 	{
 		description: "three nodes cluster",
@@ -48,7 +48,7 @@ var examples = []exampleSpec{
 				BasicConfig: &config.BasicConfig{Cluster: "cluster-501", Domain: "domain-981"},
 			},
 		},
-		nominee: &node.Spec{Name: "nominee-2", Address: "nominee-2", Port: 3254},
+		nodeSpec: &node.Spec{Name: "nominee-2", Address: "nominee-2", Port: 3254},
 	},
 	{
 		description: "cluster with authentication",
@@ -60,6 +60,6 @@ var examples = []exampleSpec{
 				BasicConfig: &config.BasicConfig{Cluster: "cluster-501", Domain: "domain-981"},
 			},
 		},
-		nominee: &node.Spec{Name: "nominee-3", Address: "nominee-3", Port: 9778},
+		nodeSpec: &node.Spec{Name: "nominee-3", Address: "nominee-3", Port: 9778},
 	},
 }

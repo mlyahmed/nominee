@@ -3,6 +3,7 @@ package election
 import (
 	"context"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github/mlyahmed.io/nominee/pkg/mock"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"github/mlyahmed.io/nominee/pkg/testutils"
@@ -20,7 +21,10 @@ func TestElector(t *testing.T, electorFactory func() Elector) {
 		{"when start then keep running", suite.whenRunWithoutErrorThenKeepRunning},
 		{"when the node stops then stonith", suite.whenTheNodeStopsThenStonith},
 		{"when elected then promote the node", suite.whenElectedThenPromoteTheNode},
+		{"when error on promote then stonith", suite.whenErrorOnPromoteThenStonith},
 		{"when demoted then stonith", suite.whenDemotedThenStonith},
+		{"when another node is promoted then follow it", suite.whenAnotherNodeIsPromotedThenFollowIt},
+		{"when error on follow then stonith", suite.whenErrorOnFollowThenStonith},
 	}
 
 	for _, test := range tests {
@@ -57,7 +61,6 @@ func (electorSuite) whenTheNodeStopsThenStonith(t *testing.T, electorFactory fun
 	}
 
 	testutils.ItMustBeStopped(t, e.Done())
-
 }
 
 var (
@@ -97,6 +100,32 @@ func (electorSuite) whenElectedThenPromoteTheNode(t *testing.T, electorFactory f
 	}
 }
 
+func (electorSuite) whenErrorOnPromoteThenStonith(t *testing.T, electorFactory func() Elector) {
+	for _, example := range nodeSpecExamples {
+		t.Run("", func(t *testing.T) {
+			elector := electorFactory()
+			defer elector.Cleanup()
+
+			n := mock.NewNode(t, &example)
+			n.LeadFn = func(_ context.Context, s node.Spec) error {
+				return errors.New("")
+			}
+
+			if err := elector.Run(n); err != nil {
+				t.Fatalf("\t\t%s FATAL: Elector, failed to run %v", testutils.Failed, err)
+			}
+
+			if err := elector.UpdateLeader(&example); err != nil {
+				t.Fatalf("\t\t%s FATAL: Elector, failed to update leader %v", testutils.Failed, err)
+			}
+
+			//FIXME: must stonith the node also
+
+			testutils.ItMustBeStopped(t, elector.Done())
+		})
+	}
+}
+
 func (electorSuite) whenDemotedThenStonith(t *testing.T, electorFactory func() Elector) {
 	for _, example := range nodeSpecExamples {
 		t.Run("", func(t *testing.T) {
@@ -115,6 +144,65 @@ func (electorSuite) whenDemotedThenStonith(t *testing.T, electorFactory func() E
 			}
 
 			if err := elector.UpdateLeader(&node.Spec{Name: string(uuid.NodeID())}); err != nil { // Demote it
+				t.Fatalf("\t\t%s FATAL: Elector, failed to update leader %v", testutils.Failed, err)
+			}
+
+			if n.StonithHits != 1 {
+				t.Fatalf("\t\t%s FATAL: Elector, expected to stonith the node.", testutils.Failed)
+			}
+
+			testutils.ItMustBeStopped(t, elector.Done())
+		})
+	}
+}
+
+func (electorSuite) whenAnotherNodeIsPromotedThenFollowIt(t *testing.T, electorFactory func() Elector) {
+	for _, example := range nodeSpecExamples {
+		t.Run("", func(t *testing.T) {
+			elector := electorFactory()
+			defer elector.Cleanup()
+			n := mock.NewNode(t, &example)
+			leader := node.Spec{Name: string(uuid.NodeID())}
+			n.FollowFn = func(ctx context.Context, l node.Spec) error {
+				if leader != l {
+					t.Fatalf("\t\t%s FATAL: Elector, expected <%v> as leader. Actual <%v>", testutils.Failed, leader, l)
+				}
+				return nil
+			}
+
+			if err := elector.Run(n); err != nil {
+				t.Fatalf("\t\t%s FATAL: Elector, failed to run %v", testutils.Failed, err)
+			}
+
+			if err := elector.UpdateLeader(&leader); err != nil { // promote another node
+				t.Fatalf("\t\t%s FATAL: Elector, failed to update leader %v", testutils.Failed, err)
+			}
+
+			if n.FollowHits != 1 {
+				t.Fatalf("\t\t%s FATAL: Elector, expected to follow the leader. Actally not.", testutils.Failed)
+			}
+		})
+	}
+}
+
+func (electorSuite) whenErrorOnFollowThenStonith(t *testing.T, electorFactory func() Elector) {
+	for _, example := range nodeSpecExamples {
+		t.Run("", func(t *testing.T) {
+			elector := electorFactory()
+			defer elector.Cleanup()
+			n := mock.NewNode(t, &example)
+			leader := node.Spec{Name: string(uuid.NodeID())}
+			n.FollowFn = func(ctx context.Context, l node.Spec) error {
+				return errors.New("")
+			}
+
+			n.StonithFn = func(context.Context) error { return nil }
+
+			if err := elector.Run(n); err != nil {
+				t.Fatalf("\t\t%s FATAL: Elector, failed to run %v", testutils.Failed, err)
+			}
+
+			if err := elector.UpdateLeader(&leader); err != nil { // Promote another node
 				t.Fatalf("\t\t%s FATAL: Elector, failed to update leader %v", testutils.Failed, err)
 			}
 

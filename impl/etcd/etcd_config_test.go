@@ -10,74 +10,50 @@ import (
 	"testing"
 )
 
-func TestEtcdConfig_loads_configurations(t *testing.T) {
+func TestEtcdConfig_it_must_load_all_configurations(t *testing.T) {
+	for _, example := range validExamples {
+		t.Run("", func(t *testing.T) {
+			defer tearsDown()
+			declareConfigurationExample(example)
+			loader := etcd.NewConfigLoader()
+			loader.Load(context.TODO())
+			etcdConfig := loader.GetSpec()
+			if etcdConfig.Cluster != example.cluster {
+				t.Fatalf("\t\t%s FAIL: ConfigSpec.Cluster, expected <%s> but actual is <%s>", testutils.Failed, example.cluster, etcdConfig.Cluster)
+			}
 
-	t.Logf("Given a valid Etcd configuration")
-	{
-		for i, example := range validExamples {
-			t.Run("", func(t *testing.T) {
-				defer tearsDown()
-				declareConfigurationExample(example)
+			if etcdConfig.Domain != example.domain {
+				t.Fatalf("\t\t%s FAIL: ConfigSpec.Domain, expected <%s> but actual is <%s>", testutils.Failed, example.domain, etcdConfig.Domain)
+			}
 
-				t.Logf("\tTest %d: When load configuration and %s.", i, example.description)
-				{
-					loader := etcd.NewConfigLoader()
-					loader.Load(context.TODO())
-					etcdConfig := loader.GetSpec()
-					if etcdConfig.Cluster != example.cluster {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Cluster, expected <%s> but actual is <%s>", testutils.Failed, example.cluster, etcdConfig.Cluster)
-					}
-					t.Logf("\t\t%s Then the ConfigSpec.Cluster should be loaded.", testutils.Succeed)
+			if !reflect.DeepEqual(etcdConfig.Endpoints, strings.Split(example.endpoints, ",")) {
+				t.Fatalf("\t\t%s FAIL: ConfigSpec.Endpoints, expected <%s> but actual is <%s>", testutils.Failed, example.endpoints, etcdConfig.Endpoints)
+			}
 
-					if etcdConfig.Domain != example.domain {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Domain, expected <%s> but actual is <%s>", testutils.Failed, example.domain, etcdConfig.Domain)
-					}
-					t.Logf("\t\t%s Then the ConfigSpec.Domain should be loaded.", testutils.Succeed)
+			if etcdConfig.Username != example.username {
+				t.Fatalf("\t\t%s FAIL: ConfigSpec.Username, expected <%s> but actual is <%s>", testutils.Failed, example.username, etcdConfig.Username)
+			}
 
-					if !reflect.DeepEqual(etcdConfig.Endpoints, strings.Split(example.endpoints, ",")) {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Endpoints, expected <%s> but actual is <%s>", testutils.Failed, example.endpoints, etcdConfig.Endpoints)
-					}
-					t.Logf("\t\t%s Then the ConfigSpec.Endpoints should be loaded.", testutils.Succeed)
-
-					if etcdConfig.Username != example.username {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Username, expected <%s> but actual is <%s>", testutils.Failed, example.username, etcdConfig.Username)
-					}
-					t.Logf("\t\t%s Then the ConfigSpec.Username should be loaded.", testutils.Succeed)
-
-					if etcdConfig.Password != example.password {
-						t.Fatalf("\t\t%s FAIL: ConfigSpec.Password, expected <%s> but actual is <%s>", testutils.Failed, example.password, etcdConfig.Password)
-					}
-					t.Logf("\t\t%s Then the ConfigSpec.Password should be loaded.", testutils.Succeed)
-				}
-			})
-		}
+			if etcdConfig.Password != example.password {
+				t.Fatalf("\t\t%s FAIL: ConfigSpec.Password, expected <%s> but actual is <%s>", testutils.Failed, example.password, etcdConfig.Password)
+			}
+		})
 	}
 }
 
-func TestEtcdConfig_panics_when_bad_configuration(t *testing.T) {
-	t.Logf("Given an invalid Etcd configuration")
-	{
-		for i, example := range invalidExamples {
-			t.Run("", func(t *testing.T) {
-				defer tearsDown()
-				declareConfigurationExample(example)
-
-				t.Logf("\tTest %d: When load configuration and %s.", i, example.description)
-				{
-					defer func() {
-						if r := recover(); r == nil {
-							t.Fatalf("\t\t%s FAIL: ConfigSpec.Load(). Expected the program to panic. Actual not.", testutils.Failed)
-						} else {
-							t.Logf("\t\t%s Then the program must panic.", testutils.Succeed)
-						}
-					}()
-
-					etcdConfig := etcd.NewConfigLoader()
-					etcdConfig.Load(context.TODO())
+func TestEtcdConfig_it_must_panic_when_bad_configuration(t *testing.T) {
+	for _, example := range invalidExamples {
+		t.Run("", func(t *testing.T) {
+			defer tearsDown()
+			declareConfigurationExample(example)
+			defer func() {
+				if r := recover(); r == nil {
+					t.Fatalf("\t\t%s FAIL: ConfigSpec.Load(). Expected the program to panic. Actual not.", testutils.Failed)
 				}
-
-			})
-		}
+			}()
+			etcdConfig := etcd.NewConfigLoader()
+			etcdConfig.Load(context.TODO())
+		})
 	}
 }
 
