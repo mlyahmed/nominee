@@ -45,7 +45,7 @@ func (etcd *Etcd) listenToTheConnectorSession() {
 	}()
 }
 
-func (etcd *Etcd) toNominee(response clientv3.GetResponse) node.Spec {
+func (etcd *Etcd) toNodeSpec(response clientv3.GetResponse) node.Spec {
 	var value node.Spec
 	if len(response.Kvs) > 0 {
 		value, _ = node.Unmarshal(response.Kvs[0].Value)

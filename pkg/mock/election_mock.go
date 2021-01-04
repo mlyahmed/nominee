@@ -63,6 +63,10 @@ func (e *Elector) Run(n node.Node) error {
 	return e.RunFn(n)
 }
 
+func (e *Elector) UpdateLeader(_ *node.Spec) error {
+	return nil
+}
+
 func (o *Observer) Observe(p proxy.Proxy) error {
 	return o.ObserveFn(p)
 }

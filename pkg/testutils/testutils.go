@@ -15,11 +15,12 @@ const (
 )
 
 func ItMustKeepRunning(t *testing.T, c node.StopChan) {
+	t.Helper()
 	select {
 	case <-c:
 		t.Fatalf("\t\t%s FAIL: expected to keep running. But actually not.", Failed)
 	default:
-		t.Logf("\t\t%s It must keep running.", Succeed)
+		return //t.Logf("\t\t%s It must keep running.", Succeed)
 	}
 }
 
@@ -33,7 +34,6 @@ func ItMustBeStopped(t *testing.T, c node.StopChan) {
 	for time.Since(start) < settleTime {
 		select {
 		case <-c:
-			t.Logf("\t\t%s It must be stopped.", Succeed)
 			return
 		case <-timer.C:
 			timer.Reset(settleTime / 10)

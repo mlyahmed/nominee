@@ -16,23 +16,20 @@ type Stonither interface {
 }
 
 type Base struct {
-	Ctx       context.Context
-	CancelFn  func()
-	StopChan  chan struct{}
-	ErrorChan chan error
+	Ctx      context.Context
+	CancelFn func()
 	Status
+	stopChan chan struct{}
 }
 
 func NewBase() *Base {
 	ctx, cancel := context.WithCancel(context.Background())
 	base := &Base{
-		Ctx:       ctx,
-		CancelFn:  cancel,
-		StopChan:  make(chan struct{}),
-		ErrorChan: make(chan error),
+		Ctx:      ctx,
+		CancelFn: cancel,
+		stopChan: make(chan struct{}),
 	}
 	base.setUpSignals()
-	base.setUpChannels()
 	return base
 }
 
@@ -47,25 +44,15 @@ func (base *Base) setUpSignals() {
 	}()
 }
 
-func (base *Base) setUpChannels() {
-	go func() {
-		for err := range base.ErrorChan {
-			if err != nil {
-				base.Stonith()
-			}
-		}
-	}()
-}
-
 func (base *Base) Stonith() {
 	base.CancelFn()
 	select {
-	case _, ok := <-base.StopChan:
+	case _, ok := <-base.stopChan:
 		if ok {
-			close(base.StopChan)
+			close(base.stopChan)
 		}
 	default:
-		close(base.StopChan)
+		close(base.stopChan)
 	}
 }
 
@@ -75,5 +62,5 @@ func (base *Base) Reset() {
 }
 
 func (base *Base) Done() node.StopChan {
-	return base.StopChan
+	return base.stopChan
 }

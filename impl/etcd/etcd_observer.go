@@ -69,7 +69,7 @@ func (observer *Observer) observeLeaderNominee() {
 	go func() {
 		observe := observer.election.Observe(observer.Ctx)
 		for leader := range observe {
-			decoded := observer.toNominee(leader)
+			decoded := observer.toNodeSpec(leader)
 			if err := observer.proxy.PushLeader(decoded); err != nil {
 				panic(err)
 			}

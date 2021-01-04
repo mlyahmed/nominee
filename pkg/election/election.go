@@ -6,6 +6,10 @@ import (
 	"github/mlyahmed.io/nominee/pkg/stonither"
 )
 
+type LeaderObserver interface {
+	UpdateLeader(leader *node.Spec) error
+}
+
 // Cleaner ...
 type Cleaner interface {
 	Cleanup()
@@ -13,6 +17,7 @@ type Cleaner interface {
 
 // Elector ...
 type Elector interface {
+	LeaderObserver
 	Run(node.Node) error
 	stonither.Stonither
 	Cleaner

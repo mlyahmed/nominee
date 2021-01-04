@@ -1,7 +1,6 @@
 package stonither_test
 
 import (
-	"github.com/pkg/errors"
 	"github/mlyahmed.io/nominee/pkg/stonither"
 	"github/mlyahmed.io/nominee/pkg/testutils"
 	"os/signal"
@@ -51,31 +50,5 @@ func TestStonither_when_receive_os_signal_then_stop(t *testing.T) {
 			})
 		}
 
-	}
-}
-
-func TestStonither_when_receive_an_error_then_stop(t *testing.T) {
-	t.Logf("Given a running stonither")
-	{
-		s := stonither.NewBase()
-		t.Logf("\tWhen receive an error")
-		{
-			go func() { s.ErrorChan <- errors.New("") }() // So avoid any blocking
-			testutils.ItMustBeStopped(t, s.Done())
-		}
-
-	}
-}
-
-func TestStonither_when_receive_a_nil_error_then_keep_running(t *testing.T) {
-	t.Logf("Given a running stonither")
-	{
-		s := stonither.NewBase()
-		t.Logf("\tWhen receive a nil error")
-		{
-			go func() { s.ErrorChan <- nil }() // So avoid any blocking
-
-			testutils.ItMustKeepRunning(t, s.Done())
-		}
 	}
 }

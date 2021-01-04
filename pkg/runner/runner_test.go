@@ -36,7 +36,7 @@ func TestElectorRunner_when_run_then_keep_running(t *testing.T) {
 			go func() {
 				time.Sleep(settleTime)
 				running = true
-				e.StopChan <- struct{}{}
+				e.Stonith()
 			}()
 
 			if err := r.Run(ctx, e, n); err != nil {
