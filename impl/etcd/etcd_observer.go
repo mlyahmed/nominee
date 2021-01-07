@@ -13,7 +13,7 @@ import (
 // Observer ...
 type Observer struct {
 	*Etcd
-	*election.DefaultObserver
+	*election.BasicObserver
 	client   Client
 	election Election
 }
@@ -22,14 +22,12 @@ type Observer struct {
 func NewObserver(cl ConfigLoader) *Observer {
 	cl.Load(context.Background())
 	log = logrus.WithFields(logrus.Fields{"observer": "etcd"})
-	observer := &Observer{Etcd: NewEtcd(cl)}
-	observer.failBackFn = func() error { return observer.subscribe() }
-	return observer
+	return &Observer{Etcd: NewEtcd(cl)}
 }
 
 // Observe ...
 func (observer *Observer) Observe(proxy proxy.Proxy) error {
-	observer.DefaultObserver = election.NewObserver(proxy)
+	observer.BasicObserver = election.NewBasicObserver(proxy)
 
 	if err := observer.subscribe(); err != nil {
 		return err

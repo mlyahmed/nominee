@@ -8,6 +8,7 @@ import (
 	"github/mlyahmed.io/nominee/pkg/proxy"
 	"github/mlyahmed.io/nominee/pkg/stonither"
 	"sync"
+	"time"
 )
 
 // Observer ...
@@ -19,8 +20,8 @@ type Observer interface {
 	base.Cleaner
 }
 
-type DefaultObserver struct {
-	*stonither.Base
+type BasicObserver struct {
+	*stonither.Basic
 	Managed   proxy.Proxy
 	Leader    *node.Spec
 	Followers map[string]*node.Spec
@@ -28,9 +29,9 @@ type DefaultObserver struct {
 	updated   bool
 }
 
-func NewObserver(p proxy.Proxy) *DefaultObserver {
-	observer := &DefaultObserver{
-		Base:      stonither.NewBase(),
+func NewBasicObserver(p proxy.Proxy) *BasicObserver {
+	observer := &BasicObserver{
+		Basic:     stonither.NewBasic(),
 		Managed:   p,
 		Leader:    nil,
 		Followers: make(map[string]*node.Spec),
@@ -42,15 +43,16 @@ func NewObserver(p proxy.Proxy) *DefaultObserver {
 	return observer
 }
 
-func (observer *DefaultObserver) startObservationLoop() {
+func (observer *BasicObserver) startObservationLoop() {
 	go func() {
 		for {
 			observer.publish()
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 }
 
-func (observer *DefaultObserver) publish() {
+func (observer *BasicObserver) publish() {
 	if observer.updated {
 		logger.G(context.Background()).Info("Publish to the proxy...")
 		observer.mutex.Lock()
@@ -66,7 +68,7 @@ func (observer *DefaultObserver) publish() {
 	}
 }
 
-func (observer *DefaultObserver) UpdateLeader(leader *node.Spec) error {
+func (observer *BasicObserver) UpdateLeader(leader *node.Spec) error {
 	observer.mutex.Lock()
 	defer observer.mutex.Unlock()
 	observer.Leader = leader
@@ -75,7 +77,7 @@ func (observer *DefaultObserver) UpdateLeader(leader *node.Spec) error {
 	return nil
 }
 
-func (observer *DefaultObserver) UpdateNodes(nodes []*node.Spec) error {
+func (observer *BasicObserver) UpdateNodes(nodes []*node.Spec) error {
 	observer.mutex.Lock()
 	defer observer.mutex.Unlock()
 	for _, spec := range nodes {
@@ -85,7 +87,7 @@ func (observer *DefaultObserver) UpdateNodes(nodes []*node.Spec) error {
 	return nil
 }
 
-func (observer *DefaultObserver) RemoveNodes(nodes ...*node.Spec) error {
+func (observer *BasicObserver) RemoveNodes(nodes ...*node.Spec) error {
 	observer.mutex.Lock()
 	defer observer.mutex.Unlock()
 	for _, spec := range nodes {
@@ -98,7 +100,7 @@ func (observer *DefaultObserver) RemoveNodes(nodes ...*node.Spec) error {
 	return nil
 }
 
-func (observer *DefaultObserver) listenToTheProxyStopChan() {
+func (observer *BasicObserver) listenToTheProxyStopChan() {
 	go func() {
 		<-observer.Managed.Done()
 		observer.Stonith(context.TODO())

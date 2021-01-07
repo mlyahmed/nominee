@@ -14,16 +14,16 @@ type Stonither interface {
 	Stonith(context.Context)
 }
 
-type Base struct {
+type Basic struct {
 	Ctx      context.Context
 	CancelFn func()
 	Status
 	doneChan chan struct{}
 }
 
-func NewBase() *Base {
+func NewBasic() *Basic {
 	ctx, cancel := context.WithCancel(context.Background())
-	base := &Base{
+	base := &Basic{
 		Ctx:      ctx,
 		CancelFn: cancel,
 		doneChan: make(chan struct{}),
@@ -32,7 +32,7 @@ func NewBase() *Base {
 	return base
 }
 
-func (base *Base) setUpSignals() {
+func (base *Basic) setUpSignals() {
 	listener := make(chan os.Signal, len(ShutdownSignals))
 	signal.Notify(listener, ShutdownSignals...)
 	go func() {
@@ -43,7 +43,7 @@ func (base *Base) setUpSignals() {
 	}()
 }
 
-func (base *Base) Stonith(context.Context) {
+func (base *Basic) Stonith(context.Context) {
 	base.CancelFn()
 	select {
 	case _, ok := <-base.doneChan:
@@ -56,11 +56,11 @@ func (base *Base) Stonith(context.Context) {
 }
 
 // Reset see types.Reseter
-func (base *Base) Reset() {
+func (base *Basic) Reset() {
 	base.CancelFn()
 	base.Ctx, base.CancelFn = context.WithCancel(context.Background())
 }
 
-func (base *Base) Done() basepkg.DoneChan {
+func (base *Basic) Done() basepkg.DoneChan {
 	return base.doneChan
 }

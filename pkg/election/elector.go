@@ -18,7 +18,7 @@ type Elector interface {
 
 // DefaultElector ...
 type DefaultElector struct {
-	*stonither.Base
+	*stonither.Basic
 	Managed node.Node
 	Leader  *node.Spec
 }
@@ -26,7 +26,7 @@ type DefaultElector struct {
 // NewElector ...
 func NewElector(managed node.Node) *DefaultElector {
 	elector := &DefaultElector{
-		Base:    stonither.NewBase(),
+		Basic:   stonither.NewBasic(),
 		Managed: managed,
 	}
 	elector.listenToTheNodeStopChan()

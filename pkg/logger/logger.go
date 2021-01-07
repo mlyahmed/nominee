@@ -33,12 +33,12 @@ var (
 
 	// S is an alias for the standard logger.
 	S = logrus.NewEntry(logrus.StandardLogger()).WithFields(logrus.Fields{
-		"buildDate":          version.Date,
-		"buildPlatform":      version.Platform,
+		//"buildDate":          version.Date,
+		//"buildPlatform":      version.Platform,
 		"buildSimpleVersion": version.SimpleVersion,
-		"buildGitVersion":    version.GitVersion,
-		"buildGitCommit":     version.GitCommit,
-		"buildImageVersion":  version.ImageVersion,
+		//"buildGitVersion":    version.GitVersion,
+		//"buildGitCommit":     version.GitCommit,
+		//"buildImageVersion":  version.ImageVersion,
 	})
 )
 

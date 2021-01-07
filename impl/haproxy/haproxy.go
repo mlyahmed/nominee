@@ -2,11 +2,11 @@ package haproxy
 
 import (
 	"context"
-	"fmt"
 	"github.com/haproxytech/client-native/v2/configuration"
 	"github.com/haproxytech/models/v2"
-	"github/mlyahmed.io/nominee/pkg/base"
+	"github/mlyahmed.io/nominee/pkg/logger"
 	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/proxy"
 	"os"
 	"os/exec"
 	"sync"
@@ -14,31 +14,32 @@ import (
 
 // HAProxy ...
 type HAProxy struct {
+	*proxy.BasicProxy
 	*configuration.Client
 	currentTx *models.Transaction
 	version   int64
-
-	mutex  *sync.Mutex
-	ctx    context.Context
-	cancel func()
+	mutex     *sync.Mutex
+	wg        *sync.WaitGroup
+	status    proxy.Status
 }
 
-func (proxy *HAProxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
-	proxy.mutex.Lock()
-	defer proxy.mutex.Unlock()
-	proxy.startTx()
-	proxy.removeAllServers()
+func (p *HAProxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	p.startTx()
+	p.removeAllServers()
 
 	if leader != nil {
-		proxy.addServer(primaryBackend, leader)
+		p.addServer(primaryBackend, leader)
 	}
 
 	for _, follower := range followers {
-		proxy.addServer(standbyBackend, follower)
+		p.addServer(standbyBackend, follower)
 	}
 
-	proxy.commitTx()
-	proxy.start(true)
+	p.commitTx()
+	p.start()
 	return nil
 }
 
@@ -51,8 +52,13 @@ const (
 func NewHAProxy(cl ConfigLoader) *HAProxy {
 	cl.Load(context.Background())
 	config := cl.GetSpec()
-	proxy := HAProxy{Client: &configuration.Client{}, mutex: &sync.Mutex{}}
-	proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
+	haProxy := HAProxy{
+		BasicProxy: proxy.NewBasicProxy(),
+		Client:     &configuration.Client{},
+		mutex:      &sync.Mutex{},
+		wg:         &sync.WaitGroup{},
+		status:     proxy.Stopped,
+	}
 
 	confParams := configuration.ClientParams{
 		ConfigurationFile:      config.ConfigFile,
@@ -62,118 +68,125 @@ func NewHAProxy(cl ConfigLoader) *HAProxy {
 		PersistentTransactions: true,
 	}
 
-	if err := proxy.Init(confParams); err != nil {
+	if err := haProxy.Init(confParams); err != nil {
 		panic(err)
 	}
 
-	version, err := proxy.GetVersion("")
+	version, err := haProxy.GetVersion("")
 	if err != nil {
 		panic(err)
 	}
 
-	proxy.version = version
+	haProxy.version = version
+	_ = haProxy.Publish(nil)
 
-	proxy.mutex.Lock()
-	defer proxy.mutex.Unlock()
-	proxy.startTx()
-	proxy.removeAllServers()
-	proxy.commitTx()
+	go func() {
+		haProxy.wg.Wait()
+		haProxy.Stonith(haProxy.Ctx)
+	}()
 
-	proxy.start(false)
-	return &proxy
+	return &haProxy
 }
 
-func (proxy *HAProxy) start(reload bool) {
-	go func(reload bool) {
-		if reload {
-			proxy.cancel()
-			proxy.ctx, proxy.cancel = context.WithCancel(context.Background())
+func (p *HAProxy) start() {
+	if p.status == proxy.Started {
+		p.Reset()
+	}
+
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		log := logger.G(p.Ctx)
+		cmd := exec.CommandContext(p.Ctx, "/docker-entrypoint.sh", p.Haproxy, "-f", p.ConfigurationFile)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Start(); err != nil {
+			log.Errorf("Failed to start %v", err)
+			return
 		}
-		command := exec.CommandContext(proxy.ctx, "/docker-entrypoint.sh", proxy.Haproxy, "-f", proxy.ConfigurationFile)
-		command.Stdout, command.Stderr = os.Stdout, os.Stderr
-		if err := command.Run(); err != nil {
-			fmt.Printf("Run of /docker-entrypoint.sh -> %v\n", err)
+		if p.status == proxy.Started {
+			log.Infof("Restarted with pid %d", cmd.Process.Pid)
+		} else {
+			log.Infof("Started with pid %d", cmd.Process.Pid)
 		}
-	}(reload)
+
+		p.status = proxy.Started
+		if err := cmd.Wait(); err != nil {
+			log.Debugf("Stopped with pid %d because %v", cmd.Process.Pid, err)
+		}
+	}()
 }
 
-func (proxy *HAProxy) Done() base.DoneChan {
-	return make(chan struct{})
+func (p *HAProxy) removeAllServers() {
+	p.removePrimaryServer()
+	p.removeStandbyServers()
 }
 
-func (proxy *HAProxy) Stonith(context.Context) {
-	panic("implement me")
-}
-
-func (proxy *HAProxy) removeAllServers() {
-	proxy.removePrimaryServer()
-	proxy.removeStandbyServers()
-}
-
-func (proxy *HAProxy) removePrimaryServer() {
-	_, primary, err := proxy.GetServers(primaryBackend, proxy.currentTx.ID)
+func (p *HAProxy) removePrimaryServer() {
+	_, primary, err := p.GetServers(primaryBackend, p.currentTx.ID)
 	if err != nil {
 		panic(err)
 	}
 	for _, server := range primary {
-		proxy.removeServer(server.Name, primaryBackend)
+		p.removeServer(server.Name, primaryBackend)
 	}
 }
 
-func (proxy *HAProxy) removeStandbyServers() {
-	_, standbies, err := proxy.GetServers(standbyBackend, proxy.currentTx.ID)
+func (p *HAProxy) removeStandbyServers() {
+	_, standbies, err := p.GetServers(standbyBackend, p.currentTx.ID)
 	if err != nil {
 		panic(err)
 	}
 	for _, server := range standbies {
-		proxy.removeServer(server.Name, standbyBackend)
+		p.removeServer(server.Name, standbyBackend)
 	}
 }
 
-func (proxy *HAProxy) addServer(backend string, nod *node.Spec) {
+func (p *HAProxy) addServer(backend string, nod *node.Spec) {
 	if nod == nil {
 		return
 	}
 
 	weight := int64(100)
-	if err := proxy.CreateServer(backend, &models.Server{
-		Name:    nod.Name,
-		Address: nod.Address,
-		Port:    &nod.Port,
-		Check:   "enabled",
-		Observe: "layer4",
-		Weight:  &weight,
-	}, proxy.currentTx.ID, 0); err != nil {
+	initAddr := "last,libc,none" // So it never fails on restart https://cbonte.github.io/haproxy-dconv/1.9/configuration.html#5.2-init-addr
+	if err := p.CreateServer(backend, &models.Server{
+		Name:     nod.Name,
+		Address:  nod.Address,
+		Port:     &nod.Port,
+		Check:    "enabled",
+		Observe:  "layer4",
+		Weight:   &weight,
+		InitAddr: &initAddr,
+	}, p.currentTx.ID, 0); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("server %s added to the backend %s \n", nod.Name, backend)
+	logger.G(p.Ctx).Infof("server %s added to the backend %s", nod.Name, backend)
 }
 
-func (proxy *HAProxy) removeServer(name, backend string) {
-	if _, _, err := proxy.GetServer(name, backend, proxy.currentTx.ID); err != nil {
+func (p *HAProxy) removeServer(name, backend string) {
+	if _, _, err := p.GetServer(name, backend, p.currentTx.ID); err != nil {
 		return
 	}
 
-	if err := proxy.DeleteServer(name, backend, proxy.currentTx.ID, 0); err != nil {
+	if err := p.DeleteServer(name, backend, p.currentTx.ID, 0); err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("server %s removed from the backend %s \n", name, backend)
+	logger.G(p.Ctx).Infof("server %s removed from the backend %s", name, backend)
 }
 
-func (proxy *HAProxy) startTx() {
-	tx, err := proxy.StartTransaction(proxy.version)
+func (p *HAProxy) startTx() {
+	tx, err := p.StartTransaction(p.version)
 	if err != nil {
 		panic(err)
 	}
-	proxy.currentTx = tx
+	p.currentTx = tx
 }
 
-func (proxy *HAProxy) commitTx() {
-	_, err := proxy.CommitTransaction(proxy.currentTx.ID)
+func (p *HAProxy) commitTx() {
+	_, err := p.CommitTransaction(p.currentTx.ID)
 	if err != nil {
 		panic(err)
 	}
-	proxy.version++
+	p.version++
 }

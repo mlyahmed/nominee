@@ -39,7 +39,7 @@ func (defaultElectorRunner) Run(ctx context.Context, elector election.Elector, n
 
 	select {
 	case <-elector.Done():
-		log.Infof("RunElector: elector done.")
+		log.Infof("RunElector: done.")
 	case <-ctx.Done():
 		log.Infof("RunElector: context done.")
 	}
@@ -58,7 +58,7 @@ func (defaultObserverRunner) Run(ctx context.Context, observer election.Observer
 
 	select {
 	case <-observer.Done():
-		log.Infof("RunObserver: elector done.")
+		log.Infof("RunObserver: done.")
 	case <-ctx.Done():
 		log.Infof("RunObserver: context done.")
 	}

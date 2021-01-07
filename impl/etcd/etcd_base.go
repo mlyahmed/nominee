@@ -23,6 +23,7 @@ func NewEtcd(cl ConfigLoader) *Etcd {
 	return &Etcd{
 		Connector:  NewDefaultConnector(),
 		ConfigSpec: cl.GetSpec(),
+		failBackFn: func() error { return nil },
 	}
 }
 

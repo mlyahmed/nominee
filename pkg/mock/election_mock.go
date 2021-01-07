@@ -17,22 +17,22 @@ type Cleaner struct {
 
 type Elector struct {
 	*Mock
-	*stonither.Base
+	*stonither.Basic
 	*Cleaner
 	RunFn func(node.Node) error
 }
 
 type Observer struct {
 	*Mock
-	*stonither.Base
+	*stonither.Basic
 	*Cleaner
 	ObserveFn func(p proxy.Proxy) error
 }
 
 func NewElector(t *testing.T) *Elector {
 	return &Elector{
-		Mock: &Mock{t: t},
-		Base: stonither.NewBase(),
+		Mock:  &Mock{t: t},
+		Basic: stonither.NewBasic(),
 		Cleaner: &Cleaner{
 			CleanupFn: func() {},
 		},
@@ -44,8 +44,8 @@ func NewElector(t *testing.T) *Elector {
 
 func NewObserver(t *testing.T) *Observer {
 	return &Observer{
-		Mock: &Mock{t: t},
-		Base: stonither.NewBase(),
+		Mock:  &Mock{t: t},
+		Basic: stonither.NewBasic(),
 		Cleaner: &Cleaner{
 			CleanupFn: func() {},
 		},
