@@ -1,6 +1,7 @@
 package stonither_test
 
 import (
+	"context"
 	"github/mlyahmed.io/nominee/pkg/stonither"
 	"github/mlyahmed.io/nominee/pkg/testutils"
 	"os/signal"
@@ -26,7 +27,7 @@ func TestStonither_when_stonith_then_stop(t *testing.T) {
 
 		t.Logf("\tWhen it is stonithed")
 		{
-			s.Stonith()
+			s.Stonith(context.TODO())
 			testutils.ItMustBeStopped(t, s.Done())
 		}
 

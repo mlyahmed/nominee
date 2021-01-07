@@ -70,3 +70,15 @@ func (e *Elector) UpdateLeader(_ *node.Spec) error {
 func (o *Observer) Observe(p proxy.Proxy) error {
 	return o.ObserveFn(p)
 }
+
+func (o *Observer) UpdateLeader(*node.Spec) error {
+	return nil
+}
+
+func (o *Observer) UpdateNodes([]*node.Spec) error {
+	return nil
+}
+
+func (o *Observer) RemoveNodes(...*node.Spec) error {
+	return nil
+}

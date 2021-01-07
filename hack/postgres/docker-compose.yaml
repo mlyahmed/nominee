@@ -7,7 +7,7 @@ networks:
 
 services:
   node1:
-    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    image: ${NOMINEE_DOCKER_REPO}/postgresw:${IMAGE_VERSION}
     env_file:
       - ../conf/docker-compose.env
     environment:
@@ -17,7 +17,7 @@ services:
       - 5411:5432
 
   node2:
-    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    image: ${NOMINEE_DOCKER_REPO}/postgresw:${IMAGE_VERSION}
     env_file:
       - ../conf/docker-compose.env
     environment:
@@ -27,7 +27,7 @@ services:
       - 5412:5432
 
   node3:
-    image: ${NOMINEE_DOCKER_REPO}/nominee-postgres:${IMAGE_VERSION}
+    image: ${NOMINEE_DOCKER_REPO}/postgresw:${IMAGE_VERSION}
     env_file:
       - ../conf/docker-compose.env
     environment:

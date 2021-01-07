@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"github/mlyahmed.io/nominee/pkg/stonither"
 )
 
 type Specifier interface {
@@ -19,8 +20,7 @@ type Node interface {
 	Specifier
 	Lead(context.Context, Spec) error
 	Follow(context.Context, Spec) error
-	Stonith(context.Context) error
-	Stop() StopChan
+	stonither.Stonither
 }
 
 // Spec ...
@@ -30,9 +30,6 @@ type Spec struct {
 	Address     string
 	Port        int64
 }
-
-// StopChan ...
-type StopChan <-chan struct{}
 
 // Marshal ...
 func (n *Spec) Marshal() string {

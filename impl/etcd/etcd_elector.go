@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
+	"github/mlyahmed.io/nominee/pkg/election"
 	"github/mlyahmed.io/nominee/pkg/logger"
 	"github/mlyahmed.io/nominee/pkg/node"
 )
@@ -11,10 +12,9 @@ import (
 // Elector ...
 type Elector struct {
 	*Etcd
-	managedNode node.Node
-	leaderEtcd  clientv3.GetResponse
-	leaderSpec  *node.Spec
-	election    Election
+	*election.DefaultElector
+	leader   clientv3.GetResponse
+	election Election
 }
 
 // NewElector ...
@@ -22,53 +22,23 @@ func NewElector(cl ConfigLoader) *Elector {
 	cl.Load(context.Background())
 	spec := cl.GetSpec()
 	log = logger.G(context.Background()).WithFields(logrus.Fields{"elector": "etcd", "domain": spec.Domain, "cluster": spec.Cluster})
-	racer := Elector{Etcd: NewEtcd(cl)}
-	racer.failBackFn = func() error { return racer.connect(true) }
-	return &racer
+	elector := Elector{Etcd: NewEtcd(cl)}
+	elector.failBackFn = func() error { return elector.connect(true) }
+	return &elector
 }
 
 // Run ...
 func (e *Elector) Run(n node.Node) error {
 	log = log.WithFields(logrus.Fields{"daemon": n.GetDaemonName(), "node": n.GetName()})
 	log.Infof("starting...")
-	e.managedNode = n
-	e.forwardStopChan()
+	e.DefaultElector = election.NewElector(n)
+
 	if err := e.connect(false); err != nil {
 		return err
 	}
 	e.listenToTheConnectorSession()
 	log.Infof("started.")
 	return nil
-}
-
-func (e *Elector) UpdateLeader(leader *node.Spec) error {
-	amICurrentlyTheLeader := e.amITheLeader()
-	amITheNewLeader := leader.Name == e.managedNode.GetName()
-	e.leaderSpec = leader
-	if amITheNewLeader && amICurrentlyTheLeader {
-		log.Infof("I stay the leader. Nothing to do.")
-	} else if amITheNewLeader && !amICurrentlyTheLeader {
-		log.Infof("promoting The Node...")
-		if err := e.managedNode.Lead(e.Ctx, *e.leaderSpec); err != nil {
-			e.Stonith()
-		}
-	} else if !amITheNewLeader && amICurrentlyTheLeader {
-		_ = e.managedNode.Stonith(e.Ctx)
-		e.Stonith()
-	} else {
-		if err := e.managedNode.Follow(e.Ctx, *e.leaderSpec); err != nil {
-			_ = e.managedNode.Stonith(e.Ctx)
-			e.Stonith()
-		}
-	}
-	return nil
-}
-
-func (e *Elector) forwardStopChan() {
-	go func() {
-		<-e.managedNode.Stop()
-		e.Stonith()
-	}()
 }
 
 func (e *Elector) connect(reconnect bool) error {
@@ -80,9 +50,9 @@ func (e *Elector) connect(reconnect bool) error {
 		return err
 	}
 
-	if len(e.leaderEtcd.Kvs) > 0 {
+	if len(e.leader.Kvs) > 0 {
 		log.Infof("resume election...")
-		e.election, _ = e.Connector.ResumeElection(e.Ctx, e.electionKey(), e.leaderEtcd)
+		e.election, _ = e.Connector.ResumeElection(e.Ctx, e.electionKey(), e.leader)
 	} else {
 		log.Infof("new election...")
 		e.election, _ = e.Connector.NewElection(e.Ctx, e.electionKey())
@@ -96,9 +66,9 @@ func (e *Elector) connect(reconnect bool) error {
 
 func (e *Elector) campaign() {
 	go func() {
-		log.Infof("campaign as %v...", e.managedNode.GetName())
-		if err := e.election.Campaign(e.Ctx, e.managedNode.GetSpec().Marshal()); err != nil {
-			e.Stonith()
+		log.Infof("campaign as %v...", e.Managed.GetName())
+		if err := e.election.Campaign(e.Ctx, e.Managed.GetSpec().Marshal()); err != nil {
+			e.Stonith(context.TODO())
 		}
 	}()
 }
@@ -107,13 +77,9 @@ func (e *Elector) observe() {
 	go func() {
 		o := e.election.Observe(e.Ctx)
 		for leader := range o {
-			e.leaderEtcd = leader
+			e.leader = leader
 			spec := e.toNodeSpec(leader)
 			_ = e.UpdateLeader(&spec)
 		}
 	}()
-}
-
-func (e *Elector) amITheLeader() bool {
-	return e.leaderSpec != nil && e.leaderSpec.Name == e.managedNode.GetName()
 }

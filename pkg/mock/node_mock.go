@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"github/mlyahmed.io/nominee/pkg/base"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"github/mlyahmed.io/nominee/pkg/testutils"
 	"testing"
@@ -24,8 +25,8 @@ type Node struct {
 	DaemonNameFn func() string
 	LeadFn       func(context.Context, node.Spec) error
 	FollowFn     func(context.Context, node.Spec) error
-	StonithFn    func(context.Context) error
-	StopChanFn   func() node.StopChan
+	StonithFn    func(context.Context)
+	StopChanFn   func() base.DoneChan
 }
 
 // NewMockServiceWithNominee ...
@@ -46,11 +47,10 @@ func NewNode(t *testing.T, spec *node.Spec) *Node {
 			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: FollowFn function not specified.", testutils.Failed)
 			return nil
 		},
-		StonithFn: func(_ context.Context) error {
+		StonithFn: func(_ context.Context) {
 			t.Fatalf("\t\t\t%s FATAL [Fail Fast]: StonithFn function not specified.", testutils.Failed)
-			return nil
 		},
-		StopChanFn: func() node.StopChan {
+		StopChanFn: func() base.DoneChan {
 			return stopChan
 		},
 	}
@@ -76,12 +76,12 @@ func (mock *Node) Follow(ctx context.Context, leader node.Spec) error {
 }
 
 // Stonith ...
-func (mock *Node) Stonith(ctx context.Context) error {
+func (mock *Node) Stonith(ctx context.Context) {
 	mock.StonithHits++
-	return mock.StonithFn(ctx)
+	mock.StonithFn(ctx)
 }
 
 // StopChan ...
-func (mock *Node) Stop() node.StopChan {
+func (mock *Node) Done() base.DoneChan {
 	return mock.StopChanFn()
 }

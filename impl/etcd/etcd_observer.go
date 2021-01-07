@@ -7,39 +7,42 @@ import (
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/election"
 	"github/mlyahmed.io/nominee/pkg/node"
-	proxy2 "github/mlyahmed.io/nominee/pkg/proxy"
+	"github/mlyahmed.io/nominee/pkg/proxy"
 )
 
 // Observer ...
 type Observer struct {
 	*Etcd
-	proxy    proxy2.Proxy
+	*election.DefaultObserver
 	client   Client
 	election Election
 }
 
-// NewEtcdObserver ...
-func NewEtcdObserver(cl ConfigLoader) election.Observer {
+// NewObserver ...
+func NewObserver(cl ConfigLoader) *Observer {
 	cl.Load(context.Background())
 	log = logrus.WithFields(logrus.Fields{"observer": "etcd"})
-	return &Observer{Etcd: NewEtcd(cl)}
+	observer := &Observer{Etcd: NewEtcd(cl)}
+	observer.failBackFn = func() error { return observer.subscribe() }
+	return observer
 }
 
 // Observe ...
-func (observer *Observer) Observe(proxy proxy2.Proxy) error {
-	observer.proxy = proxy
+func (observer *Observer) Observe(proxy proxy.Proxy) error {
+	observer.DefaultObserver = election.NewObserver(proxy)
+
 	if err := observer.subscribe(); err != nil {
 		return err
 	}
 
 	observer.listenToTheConnectorSession()
-	observer.pushCurrentNominees()
-	observer.observeLeaderNominee()
-	observer.observeNominees()
+	observer.pushCurrentNodes()
+	observer.observeLeader()
+	observer.observeNodes()
 	return nil
 }
 
-func (observer *Observer) observeNominees() {
+func (observer *Observer) observeNodes() {
 	go func() {
 		watch := observer.client.Watch(observer.Ctx, observer.electionKey(), clientv3.WithPrefix())
 		for response := range watch {
@@ -48,15 +51,15 @@ func (observer *Observer) observeNominees() {
 				decoded.ElectionKey = string(v.Kv.Key)
 				switch v.Type {
 				case mvccpb.DELETE:
-					if err := observer.proxy.RemoveNode(string(v.Kv.Key)); err != nil {
+					if err := observer.RemoveNodes(&decoded); err != nil {
 						panic(err)
 					}
-					log.Infof("GetSpec deleted : %s", decoded.Marshal())
+					log.Infof("Node deleted : %s", decoded.Marshal())
 				case mvccpb.PUT:
-					if err := observer.proxy.PushNodes(decoded); err != nil {
+					if err := observer.UpdateNodes([]*node.Spec{&decoded}); err != nil {
 						panic(err)
 					}
-					log.Infof("New GetSpec added : %s", decoded.Marshal())
+					log.Infof("node updated : %s", decoded.Marshal())
 				default:
 					panic("unknown")
 				}
@@ -65,33 +68,37 @@ func (observer *Observer) observeNominees() {
 	}()
 }
 
-func (observer *Observer) observeLeaderNominee() {
+func (observer *Observer) observeLeader() {
 	go func() {
 		observe := observer.election.Observe(observer.Ctx)
 		for leader := range observe {
 			decoded := observer.toNodeSpec(leader)
-			if err := observer.proxy.PushLeader(decoded); err != nil {
+			if err := observer.UpdateLeader(&decoded); err != nil {
 				panic(err)
 			}
-			log.Infof("Leader pushed : %s", decoded.Marshal())
+			log.Infof("Leader updated : %s", decoded.Marshal())
 		}
 	}()
 }
 
-func (observer *Observer) pushCurrentNominees() {
+func (observer *Observer) pushCurrentNodes() {
 	response, err := observer.client.Get(observer.Ctx, observer.electionKey(), clientv3.WithPrefix())
 	if err != nil {
 		panic(err)
 	}
 
-	for _, n := range response.Kvs {
+	nodes := make([]*node.Spec, len(response.Kvs))
+	for i, n := range response.Kvs {
 		decoded, _ := node.Unmarshal(n.Value)
 		decoded.ElectionKey = string(n.Key)
-		if err := observer.proxy.PushNodes(decoded); err != nil {
-			panic(err)
-		}
-		log.Infof("GetSpec pushed : %s", decoded.Marshal())
+		nodes[i] = &decoded
 	}
+
+	if err := observer.UpdateNodes(nodes); err != nil {
+		panic(err)
+	}
+	log.Infof("Current nodes updated: %v", nodes)
+
 }
 
 func (observer *Observer) subscribe() error {

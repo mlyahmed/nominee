@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/haproxytech/client-native/v2/configuration"
 	"github.com/haproxytech/models/v2"
+	"github/mlyahmed.io/nominee/pkg/base"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"os"
 	"os/exec"
@@ -16,11 +17,29 @@ type HAProxy struct {
 	*configuration.Client
 	currentTx *models.Transaction
 	version   int64
-	primary   node.Spec
-	standbies []node.Spec
-	mutex     *sync.Mutex
-	ctx       context.Context
-	cancel    func()
+
+	mutex  *sync.Mutex
+	ctx    context.Context
+	cancel func()
+}
+
+func (proxy *HAProxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
+	proxy.mutex.Lock()
+	defer proxy.mutex.Unlock()
+	proxy.startTx()
+	proxy.removeAllServers()
+
+	if leader != nil {
+		proxy.addServer(primaryBackend, leader)
+	}
+
+	for _, follower := range followers {
+		proxy.addServer(standbyBackend, follower)
+	}
+
+	proxy.commitTx()
+	proxy.start(true)
+	return nil
 }
 
 const (
@@ -78,56 +97,12 @@ func (proxy *HAProxy) start(reload bool) {
 	}(reload)
 }
 
-// PushNominees ...
-func (proxy *HAProxy) PushNodes(nominees ...node.Spec) error {
-	proxy.mutex.Lock()
-	defer proxy.mutex.Unlock()
-	proxy.startTx()
-	for _, v := range nominees {
-		proxy.removeServer(v.Name, primaryBackend)
-		proxy.removeServer(v.Name, standbyBackend)
-		proxy.addServer(standbyBackend, v)
-	}
-	proxy.standbies = append(proxy.standbies, nominees...)
-	proxy.commitTx()
-	proxy.start(true)
-	return nil
+func (proxy *HAProxy) Done() base.DoneChan {
+	return make(chan struct{})
 }
 
-// PushLeader ...
-func (proxy *HAProxy) PushLeader(leader node.Spec) error {
-	proxy.mutex.Lock()
-	defer proxy.mutex.Unlock()
-	proxy.primary = leader
-	proxy.startTx()
-	proxy.removeServer(leader.Name, primaryBackend)
-	proxy.removeServer(leader.Name, standbyBackend)
-	proxy.addServer(primaryBackend, leader)
-	proxy.commitTx()
-	proxy.start(true)
-	return nil
-}
-
-// RemoveNominee ...
-func (proxy *HAProxy) RemoveNode(electionKey string) error {
-	proxy.mutex.Lock()
-	defer proxy.mutex.Unlock()
-	proxy.startTx()
-	if proxy.primary.ElectionKey == electionKey {
-		proxy.removePrimaryServer()
-	} else {
-		for k, v := range proxy.standbies {
-			if v.ElectionKey == electionKey {
-				proxy.standbies = append(proxy.standbies[:k], proxy.standbies[k+1:]...)
-				proxy.removeServer(v.Name, standbyBackend)
-				break
-			}
-		}
-
-	}
-	proxy.commitTx()
-	proxy.start(true)
-	return nil
+func (proxy *HAProxy) Stonith(context.Context) {
+	panic("implement me")
 }
 
 func (proxy *HAProxy) removeAllServers() {
@@ -155,12 +130,16 @@ func (proxy *HAProxy) removeStandbyServers() {
 	}
 }
 
-func (proxy *HAProxy) addServer(backend string, nominee node.Spec) {
+func (proxy *HAProxy) addServer(backend string, nod *node.Spec) {
+	if nod == nil {
+		return
+	}
+
 	weight := int64(100)
 	if err := proxy.CreateServer(backend, &models.Server{
-		Name:    nominee.Name,
-		Address: nominee.Address,
-		Port:    &nominee.Port,
+		Name:    nod.Name,
+		Address: nod.Address,
+		Port:    &nod.Port,
 		Check:   "enabled",
 		Observe: "layer4",
 		Weight:  &weight,
@@ -168,7 +147,7 @@ func (proxy *HAProxy) addServer(backend string, nominee node.Spec) {
 		panic(err)
 	}
 
-	fmt.Printf("server %s added to the backend %s \n", nominee.Name, backend)
+	fmt.Printf("server %s added to the backend %s \n", nod.Name, backend)
 }
 
 func (proxy *HAProxy) removeServer(name, backend string) {

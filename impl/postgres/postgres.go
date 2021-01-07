@@ -5,6 +5,7 @@ import (
 	"fmt"
 	gopg "github.com/go-pg/pg/v10"
 	"github.com/sirupsen/logrus"
+	"github/mlyahmed.io/nominee/pkg/base"
 	"github/mlyahmed.io/nominee/pkg/node"
 	"io/ioutil"
 	"os"
@@ -57,7 +58,7 @@ type Postgres struct {
 	*node.Spec
 	cluster     string
 	domain      string
-	stopCh      chan struct{}
+	doneCh      chan struct{}
 	osUser      OSUser
 	replicaUser DBUser
 	dbaUser     DBUser
@@ -75,7 +76,7 @@ func NewPostgres(cl ConfigLoader) node.Node {
 	osu, _ := user.Lookup(postgres)
 	pg := &Postgres{
 		Spec:    &cl.GetSpec().NodeSpec,
-		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
 		cluster: config.Cluster,
 		domain:  config.Domain,
 		osUser: OSUser{
@@ -182,15 +183,14 @@ func (pg *Postgres) Follow(ctx context.Context, leader node.Spec) error {
 }
 
 // Stonith ...
-func (pg *Postgres) Stonith(context context.Context) error {
+func (pg *Postgres) Stonith(context context.Context) {
 	log.Infof("postgres: stonithing... \n")
 	_ = pg.execOSCmd(context, "pg_ctl stop", 0)
-	return nil
 }
 
 // Stop ...
-func (pg *Postgres) Stop() node.StopChan {
-	return pg.stopCh
+func (pg *Postgres) Done() base.DoneChan {
+	return pg.doneCh
 }
 
 func (pg *Postgres) start(context context.Context) error {
@@ -207,7 +207,7 @@ func (pg *Postgres) start(context context.Context) error {
 
 		_ = start.Run() //FIXME:
 		log.Warnf("Run command has returned.")
-		pg.stopCh <- struct{}{}
+		pg.doneCh <- struct{}{}
 		pg.status = stopped //When the Run returns it means the service is stopped.
 	}()
 

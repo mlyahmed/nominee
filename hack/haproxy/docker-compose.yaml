@@ -7,7 +7,7 @@ networks:
 
 services:
   haproxy:
-    image: ${NOMINEE_DOCKER_REPO}/nominee-haproxy:${IMAGE_VERSION}
+    image: ${NOMINEE_DOCKER_REPO}/haproxyw:${IMAGE_VERSION}
     env_file:
       - ../conf/docker-compose.env
     ports:

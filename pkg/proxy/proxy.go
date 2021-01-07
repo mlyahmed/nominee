@@ -1,10 +1,12 @@
 package proxy
 
-import "github/mlyahmed.io/nominee/pkg/node"
+import (
+	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/stonither"
+)
 
 // Proxy ...
 type Proxy interface {
-	PushNodes(nodes ...node.Spec) error
-	PushLeader(leader node.Spec) error
-	RemoveNode(electionKey string) error
+	Publish(leader *node.Spec, followers ...*node.Spec) error
+	stonither.Stonither
 }

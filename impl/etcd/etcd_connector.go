@@ -4,8 +4,7 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
-	"github/mlyahmed.io/nominee/pkg/election"
-	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/base"
 )
 
 // Client ...
@@ -28,11 +27,11 @@ type Election interface {
 
 // Connector ...
 type Connector interface {
-	election.Cleaner
+	base.Cleaner
 	Connect(ctx context.Context, config *ConfigSpec) (Client, error)
 	NewElection(ctx context.Context, electionKey string) (Election, error)
 	ResumeElection(ctx context.Context, electionKey string, leader clientv3.GetResponse) (Election, error)
-	Stop() node.StopChan
+	Stop() base.DoneChan
 }
 
 // DefaultConnector ...
@@ -78,7 +77,7 @@ func (server *DefaultConnector) ResumeElection(_ context.Context, electionKey st
 }
 
 // Stop ...
-func (server *DefaultConnector) Stop() node.StopChan {
+func (server *DefaultConnector) Stop() base.DoneChan {
 	return server.session.Done()
 }
 

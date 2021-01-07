@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	observer := etcd.NewEtcdObserver(etcd.NewConfigLoader())
+	observer := etcd.NewObserver(etcd.NewConfigLoader())
 	proxy := haproxy.NewHAProxy(haproxy.NewConfigLoader())
 	or := runner.NewObserverRunner()
 	if err := or.Run(context.Background(), observer, proxy); err != nil {

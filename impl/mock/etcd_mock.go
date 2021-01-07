@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/coreos/etcd/clientv3"
 	"github/mlyahmed.io/nominee/impl/etcd"
-	"github/mlyahmed.io/nominee/pkg/node"
+	"github/mlyahmed.io/nominee/pkg/base"
 	"testing"
 	"time"
 )
@@ -34,14 +34,15 @@ type Connector struct {
 	ConnectFn        func(context.Context, *etcd.ConfigSpec) (etcd.Client, error)
 	NewElectionFn    func(context.Context, string) (etcd.Election, error)
 	ResumeElectionFn func(context.Context, string, clientv3.GetResponse) (etcd.Election, error)
-	StopFn           func() node.StopChan
+	StopFn           func() base.DoneChan
 	CleanupFn        func()
 }
 
 // Client ...
 type Client struct {
-	WatchFn func(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan
-	GetFn   func(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
+	WatchCan clientv3.WatchChan
+	WatchFn  func(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan
+	GetFn    func(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error)
 }
 
 type ElectionRecord struct {
@@ -76,7 +77,7 @@ func NewConnector(_ *testing.T) *Connector {
 		return mock.Election, nil
 	}
 
-	mock.StopFn = func() node.StopChan {
+	mock.StopFn = func() base.DoneChan {
 		return mock.stopChan
 	}
 
@@ -88,14 +89,17 @@ func NewConnector(_ *testing.T) *Connector {
 
 // NewClient ...
 func NewClient() *Client {
-	return &Client{
+	watch := make(clientv3.WatchChan)
+	client := Client{
 		WatchFn: func(ctx context.Context, key string, opts ...clientv3.OpOption) clientv3.WatchChan {
-			return nil
+			return watch
 		},
 		GetFn: func(ctx context.Context, key string, opts ...clientv3.OpOption) (*clientv3.GetResponse, error) {
-			return nil, nil
+			return &clientv3.GetResponse{}, nil
 		},
 	}
+	client.WatchCan = watch
+	return &client
 }
 
 // NewElection ...
@@ -145,7 +149,7 @@ func (mock *Connector) ResumeElection(ctx context.Context, electionKey string, l
 }
 
 // Stop ...
-func (mock *Connector) Stop() node.StopChan {
+func (mock *Connector) Stop() base.DoneChan {
 	mock.StopHits++
 	return mock.StopFn()
 }

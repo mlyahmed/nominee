@@ -2,7 +2,7 @@ package stonither
 
 import (
 	"context"
-	"github/mlyahmed.io/nominee/pkg/node"
+	basepkg "github/mlyahmed.io/nominee/pkg/base"
 	"os"
 	"os/signal"
 )
@@ -10,16 +10,15 @@ import (
 type Status int
 
 type Stonither interface {
-	Stonith()
-	Reset()
-	Done() node.StopChan
+	basepkg.Doer
+	Stonith(context.Context)
 }
 
 type Base struct {
 	Ctx      context.Context
 	CancelFn func()
 	Status
-	stopChan chan struct{}
+	doneChan chan struct{}
 }
 
 func NewBase() *Base {
@@ -27,7 +26,7 @@ func NewBase() *Base {
 	base := &Base{
 		Ctx:      ctx,
 		CancelFn: cancel,
-		stopChan: make(chan struct{}),
+		doneChan: make(chan struct{}),
 	}
 	base.setUpSignals()
 	return base
@@ -38,29 +37,30 @@ func (base *Base) setUpSignals() {
 	signal.Notify(listener, ShutdownSignals...)
 	go func() {
 		<-listener
-		base.Stonith()
+		base.Stonith(context.TODO())
 		<-listener
 		os.Exit(1)
 	}()
 }
 
-func (base *Base) Stonith() {
+func (base *Base) Stonith(context.Context) {
 	base.CancelFn()
 	select {
-	case _, ok := <-base.stopChan:
+	case _, ok := <-base.doneChan:
 		if ok {
-			close(base.stopChan)
+			close(base.doneChan)
 		}
 	default:
-		close(base.stopChan)
+		close(base.doneChan)
 	}
 }
 
+// Reset see types.Reseter
 func (base *Base) Reset() {
 	base.CancelFn()
 	base.Ctx, base.CancelFn = context.WithCancel(context.Background())
 }
 
-func (base *Base) Done() node.StopChan {
-	return base.stopChan
+func (base *Base) Done() basepkg.DoneChan {
+	return base.doneChan
 }

@@ -1,35 +1,64 @@
 package mock
 
-import "github/mlyahmed.io/nominee/pkg/node"
+import (
+	"context"
+	"github/mlyahmed.io/nominee/pkg/base"
+	"github/mlyahmed.io/nominee/pkg/node"
+)
+
+type ProxyRecord struct {
+	PublishHits int
+	StonithHits int
+}
 
 type Proxy struct {
-	PushNodesFn  func(nodes ...node.Spec) error
-	PushLeaderFn func(leader node.Spec) error
-	RemoveNodeFn func(electionKey string) error
+	*ProxyRecord
+	Leader    *node.Spec
+	Followers map[string]*node.Spec
+	PublishFn func(leader *node.Spec, followers ...*node.Spec) error
+	doneChan  chan struct{}
 }
 
 func NewProxy() *Proxy {
 	return &Proxy{
-		PushNodesFn: func(nodes ...node.Spec) error {
+		ProxyRecord: &ProxyRecord{},
+		Followers:   make(map[string]*node.Spec, 0),
+		PublishFn: func(leader *node.Spec, followers ...*node.Spec) error {
 			return nil
 		},
-		PushLeaderFn: func(leader node.Spec) error {
-			return nil
-		},
-		RemoveNodeFn: func(electionKey string) error {
-			return nil
-		},
+		doneChan: make(chan struct{}),
 	}
 }
 
-func (p *Proxy) PushNodes(nodes ...node.Spec) error {
-	return p.PushNodesFn(nodes...)
+func (p *Proxy) PushNodes(...node.Spec) error {
+	//TODO: to be deleted
+	return nil
 }
 
-func (p *Proxy) PushLeader(leader node.Spec) error {
-	return p.PushLeaderFn(leader)
+func (p *Proxy) PushLeader(node.Spec) error {
+	//TODO: to be deleted
+	return nil
 }
 
-func (p *Proxy) RemoveNode(electionKey string) error {
-	return p.RemoveNodeFn(electionKey)
+func (p *Proxy) RemoveNodes(...string) error {
+	//TODO: to be deleted
+	return nil
+}
+
+func (p *Proxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
+	p.PublishHits++
+	p.Leader = leader
+	for _, follower := range followers {
+		p.Followers[follower.ElectionKey] = follower
+	}
+	return p.PublishFn(leader, followers...)
+}
+
+func (p *Proxy) Stonith(context.Context) {
+	p.StonithHits++
+	close(p.doneChan)
+}
+
+func (p *Proxy) Done() base.DoneChan {
+	return p.doneChan
 }

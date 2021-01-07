@@ -5,16 +5,13 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/sirupsen/logrus"
 	"github/mlyahmed.io/nominee/pkg/node"
-	"github/mlyahmed.io/nominee/pkg/stonither"
 )
 
 // Etcd ...
 type Etcd struct {
-	*stonither.Base
 	*ConfigSpec
-	Connector    Connector
-	nodeStopChan node.StopChan
-	failBackFn   func() error
+	Connector  Connector
+	failBackFn func() error
 }
 
 var (
@@ -25,7 +22,6 @@ var (
 func NewEtcd(cl ConfigLoader) *Etcd {
 	return &Etcd{
 		Connector:  NewDefaultConnector(),
-		Base:       stonither.NewBase(),
 		ConfigSpec: cl.GetSpec(),
 	}
 }
@@ -37,7 +33,7 @@ func (etcd *Etcd) Cleanup() {
 
 func (etcd *Etcd) listenToTheConnectorSession() {
 	go func() {
-		for {
+		for { //TODO: retries limit
 			<-etcd.Connector.Stop()
 			log.Infof("session closed. Try to reconnect...")
 			_ = etcd.failBackFn()

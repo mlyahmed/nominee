@@ -24,8 +24,7 @@ func TestEtcdElector_must_be_conform(t *testing.T) {
 		t.Run("", func(t *testing.T) {
 			election.TestElector(t, func() election.Elector {
 				elector := etcd.NewElector(example.config)
-				connector := etcdmock.NewConnector(t)
-				elector.Connector = connector
+				elector.Connector = etcdmock.NewConnector(t)
 				return elector
 			})
 		})
