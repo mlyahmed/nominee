@@ -16,6 +16,9 @@ const (
 
 	// Failed ...
 	Failed = "\u2717"
+
+	settleTime = 200 * time.Millisecond
+	stepTime   = settleTime / 10
 )
 
 func (asyncAssertion) ItMustKeepRunning(t *testing.T, c base.DoneChan) {
@@ -30,9 +33,8 @@ func (asyncAssertion) ItMustKeepRunning(t *testing.T, c base.DoneChan) {
 
 func (asyncAssertion) ItMustBeStopped(t *testing.T, c base.DoneChan) {
 	t.Helper()
-	const settleTime = 200 * time.Millisecond
 	start := time.Now()
-	timer := time.NewTimer(settleTime / 10)
+	timer := time.NewTimer(stepTime)
 	defer timer.Stop()
 
 	for time.Since(start) < settleTime {
@@ -40,7 +42,7 @@ func (asyncAssertion) ItMustBeStopped(t *testing.T, c base.DoneChan) {
 		case <-c:
 			return
 		case <-timer.C:
-			timer.Reset(settleTime / 10)
+			timer.Reset(stepTime)
 		}
 	}
 
@@ -49,10 +51,8 @@ func (asyncAssertion) ItMustBeStopped(t *testing.T, c base.DoneChan) {
 
 func (asyncAssertion) ItMustBeTrue(t *testing.T, assert func() bool) {
 	t.Helper()
-	const settleTime = 200 * time.Millisecond
-	const step = settleTime / 10
 	start := time.Now()
-	timer := time.NewTimer(step)
+	timer := time.NewTimer(stepTime)
 	defer timer.Stop()
 
 	for time.Since(start) < settleTime {
@@ -60,7 +60,7 @@ func (asyncAssertion) ItMustBeTrue(t *testing.T, assert func() bool) {
 			return
 		}
 		<-timer.C
-		timer.Reset(step)
+		timer.Reset(stepTime)
 	}
 
 	t.Fatalf("\t\t%spec FATAL: expected to be true. Actually it returns false", Failed)

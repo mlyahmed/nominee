@@ -14,7 +14,7 @@ type ProxyRecord struct {
 type Proxy struct {
 	*ProxyRecord
 	Leader    *node.Spec
-	Followers map[string]*node.Spec
+	Followers []*node.Spec
 	PublishFn func(leader *node.Spec, followers ...*node.Spec) error
 	doneChan  chan struct{}
 }
@@ -22,7 +22,7 @@ type Proxy struct {
 func NewProxy() *Proxy {
 	return &Proxy{
 		ProxyRecord: &ProxyRecord{},
-		Followers:   make(map[string]*node.Spec, 0),
+		Followers:   make([]*node.Spec, 0),
 		PublishFn: func(leader *node.Spec, followers ...*node.Spec) error {
 			return nil
 		},
@@ -33,9 +33,7 @@ func NewProxy() *Proxy {
 func (p *Proxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
 	p.PublishHits++
 	p.Leader = leader
-	for _, follower := range followers {
-		p.Followers[follower.ElectionKey] = follower
-	}
+	p.Followers = followers
 	return p.PublishFn(leader, followers...)
 }
 

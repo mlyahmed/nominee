@@ -23,6 +23,7 @@ func TestObserver(t *testing.T, factory func() Observer) {
 		{"when new leader then publish it", suite.whenNewLeaderThenPublishIt},
 		{"when new node then add it as follower", suite.whenNewNodeThenAddItAsFollower},
 		{"when a follower is removed then removes it", suite.whenAFollowerIsRemovedThenRemovesIt},
+		{"when the leader is removed then removes it", suite.whenTheLeaderIsRemovedThenRemovesIt},
 	}
 
 	for _, test := range tests {
@@ -99,13 +100,10 @@ func (observerSuite) whenNewFollowersThenPublishThem(t *testing.T, factory func(
 		t.Fatalf("\t\t%s FATAL: Observer, failed to update nodes %v", testutils.Failed, err)
 	}
 
+	sortNodes(nodeSpecExamples)
 	equal := func() bool {
-		actual := make([]*node.Spec, len(proxy.Followers))
-
-		for _, v := range proxy.Followers {
-			actual = append(actual, v)
-		}
-		return reflect.DeepEqual(nodeSpecExamples, actual)
+		sortNodes(proxy.Followers)
+		return reflect.DeepEqual(nodeSpecExamples, proxy.Followers)
 	}
 
 	testutils.AsyncAssertion.ItMustBeTrue(t, equal)
@@ -129,22 +127,10 @@ func (observerSuite) whenNewNodeThenAddItAsFollower(t *testing.T, factory func()
 	}
 
 	expected := append(nodeSpecExamples, newNode)
-	sort.Slice(expected, func(i, j int) bool {
-		return expected[i].Name < expected[j].Name
-	})
-
+	sortNodes(expected)
 	equal := func() bool {
-		actual := make([]*node.Spec, len(proxy.Followers))
-		i := 0
-		for _, v := range proxy.Followers {
-			actual[i] = v
-			i++
-		}
-		sort.Slice(actual, func(i, j int) bool {
-			return actual[i].Name < actual[j].Name
-		})
-
-		return reflect.DeepEqual(expected, actual)
+		sortNodes(proxy.Followers)
+		return reflect.DeepEqual(expected, proxy.Followers)
 	}
 	testutils.AsyncAssertion.ItMustBeTrue(t, equal)
 }
@@ -166,23 +152,46 @@ func (observerSuite) whenAFollowerIsRemovedThenRemovesIt(t *testing.T, factory f
 	}
 
 	expected := nodeSpecExamples[1:]
-	sort.Slice(expected, func(i, j int) bool {
-		return expected[i].Name < expected[j].Name
-	})
-
+	sortNodes(expected)
 	equal := func() bool {
-		actual := make([]*node.Spec, len(proxy.Followers))
-		i := 0
-		for _, v := range proxy.Followers {
-			actual[i] = v
-			i++
-		}
-		sort.Slice(actual, func(i, j int) bool {
-			return actual[i].Name < actual[j].Name
-		})
-
-		return reflect.DeepEqual(expected, actual)
+		sortNodes(proxy.Followers)
+		return reflect.DeepEqual(expected, proxy.Followers)
 	}
 	testutils.AsyncAssertion.ItMustBeTrue(t, equal)
+}
 
+func (observerSuite) whenTheLeaderIsRemovedThenRemovesIt(t *testing.T, factory func() Observer) {
+	observer := factory()
+	defer observer.Cleanup()
+	proxy := mock.NewProxy()
+	if err := observer.Observe(proxy); err != nil {
+		t.Fatalf("\t\t%s FATAL: Observer, failed to run %v", testutils.Failed, err)
+	}
+
+	if err := observer.UpdateNodes(nodeSpecExamples...); err != nil {
+		t.Fatalf("\t\t%s FATAL: Observer, failed to update nodes %v", testutils.Failed, err)
+	}
+
+	leader := &node.Spec{ElectionKey: "new-key-001", Name: "new-node-001", Address: "27.23.56.98", Port: 4589}
+	if err := observer.UpdateLeader(leader); err != nil {
+		t.Fatalf("\t\t%s FATAL: Observer, failed to update the leader %v", testutils.Failed, err)
+	}
+
+	if err := observer.RemoveNodes(leader); err != nil {
+		t.Fatalf("\t\t%s FATAL: Observer, failed to remove the leader %v", testutils.Failed, err)
+	}
+
+	sortNodes(nodeSpecExamples)
+	equal := func() bool {
+		sortNodes(proxy.Followers)
+		t.Logf("leader <%v>, expected followers <%v>, actual followers <%v>", proxy.Leader, nodeSpecExamples, proxy.Followers)
+		return proxy.Leader == nil && reflect.DeepEqual(nodeSpecExamples, proxy.Followers)
+	}
+	testutils.AsyncAssertion.ItMustBeTrue(t, equal)
+}
+
+func sortNodes(nodes []*node.Spec) {
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].Name < nodes[j].Name
+	})
 }
