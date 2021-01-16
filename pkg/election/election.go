@@ -9,6 +9,6 @@ type LeaderWatcher interface {
 }
 
 type NodesWatcher interface {
-	UpdateNodes(nodes []*node.Spec) error
+	UpdateNodes(nodes ...*node.Spec) error
 	RemoveNodes(nodes ...*node.Spec) error
 }

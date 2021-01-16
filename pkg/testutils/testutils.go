@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+type asyncAssertion struct{}
+
+var AsyncAssertion = asyncAssertion{}
+
 const (
 	// Succeed ...
 	Succeed = "\u2713"
@@ -14,7 +18,7 @@ const (
 	Failed = "\u2717"
 )
 
-func ItMustKeepRunning(t *testing.T, c base.DoneChan) {
+func (asyncAssertion) ItMustKeepRunning(t *testing.T, c base.DoneChan) {
 	t.Helper()
 	select {
 	case <-c:
@@ -24,7 +28,7 @@ func ItMustKeepRunning(t *testing.T, c base.DoneChan) {
 	}
 }
 
-func ItMustBeStopped(t *testing.T, c base.DoneChan) {
+func (asyncAssertion) ItMustBeStopped(t *testing.T, c base.DoneChan) {
 	t.Helper()
 	const settleTime = 200 * time.Millisecond
 	start := time.Now()
@@ -43,7 +47,7 @@ func ItMustBeStopped(t *testing.T, c base.DoneChan) {
 	t.Fatalf("\t\t%s FAIL: Stonither, expected to be stopped. But actually not.", Failed)
 }
 
-func ItMustBeTrue(t *testing.T, assert func() bool) {
+func (asyncAssertion) ItMustBeTrue(t *testing.T, assert func() bool) {
 	t.Helper()
 	const settleTime = 200 * time.Millisecond
 	const step = settleTime / 10

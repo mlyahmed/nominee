@@ -53,14 +53,17 @@ func (observer *BasicObserver) startObservationLoop() {
 }
 
 func (observer *BasicObserver) publish() {
+	observer.mutex.Lock()
+	defer observer.mutex.Unlock()
+
 	if observer.updated {
 		logger.G(context.Background()).Info("Publish to the proxy...")
-		observer.mutex.Lock()
-		defer observer.mutex.Unlock()
 
 		followers := make([]*node.Spec, len(observer.Followers))
+		i := 0
 		for _, follower := range observer.Followers {
-			followers = append(followers, follower)
+			followers[i] = follower
+			i++
 		}
 		_ = observer.Managed.Publish(observer.Leader, followers...)
 		observer.updated = false
@@ -77,7 +80,7 @@ func (observer *BasicObserver) UpdateLeader(leader *node.Spec) error {
 	return nil
 }
 
-func (observer *BasicObserver) UpdateNodes(nodes []*node.Spec) error {
+func (observer *BasicObserver) UpdateNodes(nodes ...*node.Spec) error {
 	observer.mutex.Lock()
 	defer observer.mutex.Unlock()
 	for _, spec := range nodes {

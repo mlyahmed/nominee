@@ -15,9 +15,9 @@ type electorSuite struct{}
 
 var (
 	nodeSpecExamples = []*node.Spec{
-		{Name: "Node-001", Address: "192.168.1.1", Port: 2222},
-		{Name: "Node-002", Address: "172.10.0.21", Port: 8989},
-		{Name: "Node-003", Address: "10.10.0.1", Port: 5432},
+		{ElectionKey: "key-001", Name: "Node-001", Address: "192.168.1.1", Port: 2222},
+		{ElectionKey: "key-002", Name: "Node-002", Address: "172.10.0.21", Port: 8989},
+		{ElectionKey: "key-003", Name: "Node-003", Address: "10.10.0.1", Port: 5432},
 	}
 )
 
@@ -49,7 +49,7 @@ func (electorSuite) whenRunWithoutErrorThenKeepRunning(t *testing.T, factory fun
 	if err := elector.Run(mock.NewNode(t, &node.Spec{})); err != nil {
 		t.Fatalf("\t\t%s FATAL: Elector, failed to run %v", testutils.Failed, err)
 	}
-	testutils.ItMustKeepRunning(t, elector.Done())
+	testutils.AsyncAssertion.ItMustKeepRunning(t, elector.Done())
 }
 
 func (electorSuite) whenTheNodeStopsThenStonith(t *testing.T, factory func() Elector) {
@@ -66,7 +66,7 @@ func (electorSuite) whenTheNodeStopsThenStonith(t *testing.T, factory func() Ele
 
 	nod.Stonith(context.Background())
 
-	testutils.ItMustBeStopped(t, elector.Done())
+	testutils.AsyncAssertion.ItMustBeStopped(t, elector.Done())
 }
 
 func (electorSuite) whenElectedThenPromoteTheNode(t *testing.T, factory func() Elector) {
@@ -119,7 +119,7 @@ func (electorSuite) whenErrorOnPromoteThenStonith(t *testing.T, factory func() E
 
 			//FIXME: must stonith the node also
 
-			testutils.ItMustBeStopped(t, elector.Done())
+			testutils.AsyncAssertion.ItMustBeStopped(t, elector.Done())
 		})
 	}
 }
@@ -149,7 +149,7 @@ func (electorSuite) whenDemotedThenStonith(t *testing.T, factory func() Elector)
 				t.Fatalf("\t\t%s FATAL: Elector, expected to stonith the node.", testutils.Failed)
 			}
 
-			testutils.ItMustBeStopped(t, elector.Done())
+			testutils.AsyncAssertion.ItMustBeStopped(t, elector.Done())
 		})
 	}
 }
@@ -208,7 +208,7 @@ func (electorSuite) whenErrorOnFollowThenStonith(t *testing.T, factory func() El
 				t.Fatalf("\t\t%s FATAL: Elector, expected to stonith the node.", testutils.Failed)
 			}
 
-			testutils.ItMustBeStopped(t, elector.Done())
+			testutils.AsyncAssertion.ItMustBeStopped(t, elector.Done())
 		})
 	}
 }

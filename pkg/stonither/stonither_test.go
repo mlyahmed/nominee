@@ -15,7 +15,7 @@ func TestStonither_when_created_then_it_must_keep_running(t *testing.T) {
 		t.Logf("\tWhen created.")
 		{
 			s := stonither.NewBasic()
-			testutils.ItMustKeepRunning(t, s.Done())
+			testutils.AsyncAssertion.ItMustKeepRunning(t, s.Done())
 		}
 	}
 }
@@ -28,7 +28,7 @@ func TestStonither_when_stonith_then_stop(t *testing.T) {
 		t.Logf("\tWhen it is stonithed")
 		{
 			s.Stonith(context.TODO())
-			testutils.ItMustBeStopped(t, s.Done())
+			testutils.AsyncAssertion.ItMustBeStopped(t, s.Done())
 		}
 
 	}
@@ -46,7 +46,7 @@ func TestStonither_when_receive_os_signal_then_stop(t *testing.T) {
 					if err := syscall.Kill(syscall.Getpid(), sig); err != nil {
 						t.Fatalf("\t\t%s FAIL: Stonither, error when send SIGINT %v", testutils.Failed, err)
 					}
-					testutils.ItMustBeStopped(t, s.Done())
+					testutils.AsyncAssertion.ItMustBeStopped(t, s.Done())
 				}
 			})
 		}

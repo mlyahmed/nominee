@@ -15,7 +15,7 @@ func init() {
 
 func TestEtcdObserver_must_be_conform(t *testing.T) {
 	for _, example := range examples {
-		t.Run("", func(t *testing.T) {
+		t.Run(example.description, func(t *testing.T) {
 			election.TestObserver(t, func() election.Observer {
 				observer := etcd.NewObserver(example.config)
 				observer.Connector = etcdmock.NewConnector(t)

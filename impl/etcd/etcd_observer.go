@@ -54,7 +54,7 @@ func (observer *Observer) observeNodes() {
 					}
 					log.Infof("Node deleted : %s", decoded.Marshal())
 				case mvccpb.PUT:
-					if err := observer.UpdateNodes([]*node.Spec{&decoded}); err != nil {
+					if err := observer.UpdateNodes(&decoded); err != nil {
 						panic(err)
 					}
 					log.Infof("node updated : %s", decoded.Marshal())
@@ -92,7 +92,7 @@ func (observer *Observer) pushCurrentNodes() {
 		nodes[i] = &decoded
 	}
 
-	if err := observer.UpdateNodes(nodes); err != nil {
+	if err := observer.UpdateNodes(nodes...); err != nil {
 		panic(err)
 	}
 	log.Infof("Current nodes updated: %v", nodes)

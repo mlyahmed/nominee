@@ -2,6 +2,7 @@ package haproxy
 
 import (
 	"context"
+	"fmt"
 	"github.com/haproxytech/client-native/v2/configuration"
 	"github.com/haproxytech/models/v2"
 	"github/mlyahmed.io/nominee/pkg/logger"
@@ -89,30 +90,34 @@ func NewHAProxy(cl ConfigLoader) *HAProxy {
 }
 
 func (p *HAProxy) start() {
-	if p.status == proxy.Started {
-		p.Reset()
-	}
-
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
 		log := logger.G(p.Ctx)
-		cmd := exec.CommandContext(p.Ctx, "/docker-entrypoint.sh", p.Haproxy, "-f", p.ConfigurationFile)
+
+		cmdStr := fmt.Sprintf("%s -db -f %s", p.Haproxy, p.ConfigurationFile)
+		if p.status == proxy.Started {
+			cmdStr = fmt.Sprintf("%s -db -f %s -sf $(cat /run/haproxy.pid)", p.Haproxy, p.ConfigurationFile)
+		}
+		cmd := exec.CommandContext(p.Ctx, "bash", "-c", cmdStr)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+
 		if err := cmd.Start(); err != nil {
 			log.Errorf("Failed to start %v", err)
 			return
 		}
+		pid := cmd.Process.Pid
 		if p.status == proxy.Started {
-			log.Infof("Restarted with pid %d", cmd.Process.Pid)
+			log.Infof("Restarted with pid %d", pid)
 		} else {
-			log.Infof("Started with pid %d", cmd.Process.Pid)
+			log.Infof("Started with pid %d", pid)
 		}
-
 		p.status = proxy.Started
 		if err := cmd.Wait(); err != nil {
-			log.Debugf("Stopped with pid %d because %v", cmd.Process.Pid, err)
+			log.Debugf("Stopped with pid %d because %v", pid, err)
+			return
 		}
+		log.Infof("Stopped with pid %d", pid)
 	}()
 }
 

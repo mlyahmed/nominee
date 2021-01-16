@@ -30,21 +30,6 @@ func NewProxy() *Proxy {
 	}
 }
 
-func (p *Proxy) PushNodes(...node.Spec) error {
-	//TODO: to be deleted
-	return nil
-}
-
-func (p *Proxy) PushLeader(node.Spec) error {
-	//TODO: to be deleted
-	return nil
-}
-
-func (p *Proxy) RemoveNodes(...string) error {
-	//TODO: to be deleted
-	return nil
-}
-
 func (p *Proxy) Publish(leader *node.Spec, followers ...*node.Spec) error {
 	p.PublishHits++
 	p.Leader = leader
