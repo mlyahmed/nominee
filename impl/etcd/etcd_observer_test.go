@@ -70,3 +70,25 @@ func TestEtcdObserver_when_subscribe_to_the_election_then_the_key_must_be_confor
 		})
 	}
 }
+
+func TestEtcdObserver_when_the_server_session_is_closed_retry_to_connect(t *testing.T) {
+	for _, example := range examples {
+		observer := etcd.NewObserver(example.config)
+		connector := etcdmock.NewConnector(t)
+		observer.Connector = connector
+
+		if err := observer.Observe(mock.NewProxy()); err != nil {
+			t.Fatalf("\t\t%s FATAL: EtcdObserver, error when RUN %v", testutils.Failed, err)
+		}
+
+		connector.CloseSession()
+
+		if connector.ConnectHits != 2 {
+			t.Fatalf("\t\t%s FAIL: EtcdObserver, expected  to retry to connect. But actually not.", testutils.Failed)
+		}
+
+		if connector.NewElectionHits != 2 {
+			t.Fatalf("\t\t%s FAIL: EtcdObserver, expected  to create new election. But actually not.", testutils.Failed)
+		}
+	}
+}

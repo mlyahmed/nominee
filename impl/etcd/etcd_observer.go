@@ -22,7 +22,9 @@ type Observer struct {
 func NewObserver(cl ConfigLoader) *Observer {
 	cl.Load(context.Background())
 	log = logrus.WithFields(logrus.Fields{"observer": "etcd"})
-	return &Observer{Etcd: NewEtcd(cl)}
+	o := Observer{Etcd: NewEtcd(cl)}
+	o.failBackFn = o.failBack
+	return &o
 }
 
 // Observe ...
@@ -109,5 +111,15 @@ func (observer *Observer) subscribe() error {
 	observer.election, _ = observer.Connector.NewElection(observer.Ctx, observer.electionKey())
 
 	log.Infof("subscribed to Etcd server.")
+	return nil
+}
+
+func (observer *Observer) failBack() error {
+	observer.Reset()
+	if err := observer.subscribe(); err != nil {
+		return err
+	}
+	observer.observeLeader()
+	observer.observeNodes()
 	return nil
 }

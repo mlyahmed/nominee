@@ -101,12 +101,11 @@ func TestEtcdElector_must_campaign_for_leadership(t *testing.T) {
 
 func TestEtcdElector_when_the_server_session_is_closed_retry_to_connect(t *testing.T) {
 	for _, example := range examples {
-		nd := mock.NewNode(t, example.nodeSpec)
-		racer := etcd.NewElector(example.config)
+		elector := etcd.NewElector(example.config)
 		connector := etcdmock.NewConnector(t)
-		racer.Connector = connector
+		elector.Connector = connector
 
-		if err := racer.Run(nd); err != nil {
+		if err := elector.Run(mock.NewNode(t, example.nodeSpec)); err != nil {
 			t.Fatalf("\t\t%s FATAL: EtcdElector, error when RUN %v", testutils.Failed, err)
 		}
 
@@ -126,11 +125,11 @@ func TestEtcdElector_when_there_was_already_a_leader_and_reconnect_then_resume_t
 	for _, example := range examples {
 		nd := mock.NewNode(t, example.nodeSpec)
 		nd.LeadFn = func(context.Context, node.Spec) error { return nil }
-		racer := etcd.NewElector(example.config)
+		elector := etcd.NewElector(example.config)
 		connector := etcdmock.NewConnector(t)
-		racer.Connector = connector
+		elector.Connector = connector
 
-		if err := racer.Run(nd); err != nil {
+		if err := elector.Run(nd); err != nil {
 			t.Fatalf("\t\t%s FATAL: EtcdElector, error when RUN %v", testutils.Failed, err)
 		}
 
